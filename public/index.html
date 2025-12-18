@@ -6,29 +6,13 @@
     <title>Olympia Control Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* CSS CHUNG - NỀN TRẮNG */
+        /* GIỮ NGUYÊN CSS CŨ */
         body { background-color: #ffffff; color: #333333; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }
-
-        /* --- VIEWER --- */
         #viewerContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: white; z-index: 9999; overflow: hidden; }
         #viewerBg { position: absolute; width: 100vw; height: 100vh; object-fit: fill; z-index: 1; }
-        #timerDisplay { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 25rem; font-weight: 900; color: white; 
-            -webkit-text-stroke: 8px black; 
-            display: none; line-height: 1; z-index: 10;
-        }
-        #viewerFsWarning {
-            display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.95); z-index: 10000; color: red; flex-direction: column; justify-content: center; align-items: center; text-align: center;
-        }
-
-        /* --- MC UI --- */
-        #mcContainer { 
-            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background-color: #ffffff; color: #000000; z-index: 5000;
-            overflow: hidden; flex-direction: column; padding: 20px 40px;
-        }
+        #timerDisplay { display: none; } /* Đã ẩn theo yêu cầu trước */
+        #viewerFsWarning { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 10000; color: red; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        #mcContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; color: #000000; z-index: 5000; overflow: hidden; flex-direction: column; padding: 20px 40px; }
         .mc-header-row { height: 15%; display: flex; justify-content: space-between; align-items: center; border-bottom: 4px solid #000000; margin-bottom: 10px; }
         .mc-target-info { font-size: 2.5rem; color: #d35400; font-weight: 900; text-transform: uppercase; }
         .mc-wager-text { color: #2e7d32; margin-left: 20px; font-weight: bold; }
@@ -38,37 +22,26 @@
         .mc-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; }
         .mc-col-left { border-right: 4px solid #000000; padding-right: 20px; }
         .mc-lbl-player { color: #004d40; font-size: 1.2rem; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
-        /* FORCE UPPERCASE MC PLAYER ANSWER */
         .mc-val-player { color: #00695c; font-size: 2.8rem; font-weight: 900; word-wrap: break-word; text-transform: uppercase; }
         .mc-col-right { padding-left: 20px; }
         .mc-lbl-correct { color: #880e4f; font-size: 1.2rem; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
         .mc-val-correct { color: #c2185b; font-size: 2.8rem; font-weight: 900; word-wrap: break-word; }
-
-        /* --- HOST UI --- */
         #hostContainer { display: none; }
         .host-top-bar { background: #fff; border-bottom: 1px solid #ddd; padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .host-card { background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; height: 100%; border: 1px solid #eaeaea; }
         .host-section-title { font-size: 1.1rem; font-weight: bold; color: #444; text-transform: uppercase; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
         .btn-custom { font-weight: bold; border-radius: 6px; }
-
-        /* --- POPUP --- */
         #privateMsgPopup { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border: 5px solid #d63384; border-radius: 20px; padding: 40px; z-index: 999999; text-align: center; box-shadow: 0 0 100px rgba(0,0,0,0.5); width: 90%; max-width: 700px; }
         #pMsgContent { font-size: 2.5rem; color: #000; font-weight: bold; margin: 30px 0; word-wrap: break-word; }
-
-        /* --- PLAYER UI --- */
         #playerGameScreen { display: none; max-width: 900px; margin: 0 auto; position: relative; }
         #playerTimerDisplay { position: absolute; top: 10px; right: 10px; font-size: 3rem; font-weight: bold; color: #d9534f; display: none; background: #fff; padding: 0 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 2px solid #ccc; }
         .p-title { color: #d9534f; font-weight: bold; text-transform: uppercase; text-align: center; font-size: 2.5rem; margin-bottom: 25px; }
         .p-label { font-weight: bold; font-size: 1.2rem; color: #333; margin-bottom: 5px; margin-top: 15px; }
-        
         .p-question-box { background-color: #000000; color: #ffffff; width: 100%; min-height: 200px; padding: 20px; font-size: 1.6rem; display: block; border: 2px solid #000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
         .p-input { background-color: #FFC0CB; border: 2px solid #333; width: 100%; height: 60px; padding: 0 15px; font-size: 1.5rem; color: #000; outline: none; font-weight: bold; text-transform: uppercase; }
-        /* FORCE UPPERCASE PLAYER RESULT */
         .p-result-box { background-color: #87CEEB; width: 100%; height: 80px; padding: 0 15px; font-size: 1.6rem; font-weight: bold; color: #000000; display: flex; align-items: center; border: 1px solid #000; text-transform: uppercase; }
-        
         .fs-warning-text { color: red; font-weight: bold; font-size: 1.3rem; animation: blink 1s infinite; display: none; background: #fff3cd; padding: 10px; border: 2px solid red; }
         @keyframes blink { 50% { opacity: 0.5; } }
-
         #playerLoginScreen { max-width: 500px; margin: 50px auto; }
     </style>
 </head>
@@ -98,7 +71,6 @@
                 <button onclick="resetRoom()" class="btn btn-warning btn-sm fw-bold">♻️ RESET GAME</button>
             </div>
         </div>
-
         <div class="container-fluid">
             <div class="row">
                 <div class="col-md-3">
@@ -121,7 +93,6 @@
                         </div>
                     </div>
                 </div>
-
                 <div class="col-md-5">
                     <div class="host-card">
                         <div class="host-section-title">📝 Nội Dung & Điểm Cược</div>
@@ -146,7 +117,6 @@
                         <div class="mt-2 text-center text-success fw-bold" id="targetName">Target: Chưa chọn</div>
                     </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="host-card">
                         <div class="host-section-title">👥 Danh Sách Thí Sinh</div>
@@ -159,22 +129,13 @@
 
     <div id="mcContainer" style="display: none;">
         <div class="mc-header-row">
-            <div class="mc-target-info">
-                THÍ SINH: <span id="mcTargetDisplay">...</span>
-                <span id="mcWagerDisplay" class="mc-wager-text"></span>
-            </div>
+            <div class="mc-target-info">THÍ SINH: <span id="mcTargetDisplay">...</span><span id="mcWagerDisplay" class="mc-wager-text"></span></div>
             <div class="mc-timer-text" id="mcTimerDisplay">00</div>
         </div>
         <div id="mcQuestion" class="mc-question-area">ĐANG CHỜ CÂU HỎI...</div>
         <div class="mc-footer-row">
-            <div class="mc-col mc-col-left">
-                <div class="mc-lbl-player">ĐÁP ÁN THÍ SINH</div>
-                <div id="mcPlayerAnswer" class="mc-val-player">...</div>
-            </div>
-            <div class="mc-col mc-col-right">
-                <div class="mc-lbl-correct">ĐÁP ÁN CHƯƠNG TRÌNH</div>
-                <div id="mcAnswer" class="mc-val-correct">...</div>
-            </div>
+            <div class="mc-col mc-col-left"><div class="mc-lbl-player">ĐÁP ÁN THÍ SINH</div><div id="mcPlayerAnswer" class="mc-val-player">...</div></div>
+            <div class="mc-col mc-col-right"><div class="mc-lbl-correct">ĐÁP ÁN CHƯƠNG TRÌNH</div><div id="mcAnswer" class="mc-val-correct">...</div></div>
         </div>
     </div>
 
@@ -210,12 +171,13 @@
         </div>
         <img id="viewerBg" src="/assets/bg.gif" onerror="this.style.display='none'" alt="Background">
         <div class="viewer-content"><div id="timerDisplay">15</div></div>
-        <audio id="s_intro" src="/assets/intro.mp3"></audio>
-        <audio id="s_betting" src="/assets/betting.mp3"></audio>
-        <audio id="s_timer15" src="/assets/timer15.mp3"></audio>
-        <audio id="s_timer30" src="/assets/timer30.mp3"></audio>
-        <audio id="s_right" src="/assets/right.mp3"></audio>
-        <audio id="s_wrong" src="/assets/wrong.mp3"></audio>
+        
+        <audio id="s_intro" src="/assets/intro.mp3" preload="auto"></audio>
+        <audio id="s_betting" src="/assets/betting.mp3" preload="auto"></audio>
+        <audio id="s_timer15" src="/assets/timer15.mp3" preload="auto"></audio>
+        <audio id="s_timer30" src="/assets/timer30.mp3" preload="auto"></audio>
+        <audio id="s_right" src="/assets/right.mp3" preload="auto"></audio>
+        <audio id="s_wrong" src="/assets/wrong.mp3" preload="auto"></audio>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -244,9 +206,33 @@
         }
         function requestFullScreen() { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>console.log(e)); }
 
+        // --- HÀM MỚI: MỒI ÂM THANH (FIX DELAY) ---
+        function warmUpAudio() {
+            const audioIds = ['s_intro', 's_betting', 's_timer15', 's_timer30', 's_right', 's_wrong'];
+            audioIds.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) {
+                    el.muted = true; // Tắt tiếng
+                    // Phát thử rồi dừng ngay để trình duyệt nạp vào RAM
+                    el.play().then(() => {
+                        el.pause();
+                        el.currentTime = 0;
+                        el.muted = false; // Bật tiếng lại để sẵn sàng
+                    }).catch(err => {
+                        console.log("Audio chưa sẵn sàng (cần tương tác người dùng):", err);
+                    });
+                }
+            });
+        }
+        // ------------------------------------------
+
         function setMode(m) {
             mode = m;
             document.getElementById('modeSelector').style.display = 'none';
+            
+            // GỌI HÀM MỒI ÂM THANH NGAY KHI CHỌN CHẾ ĐỘ
+            warmUpAudio(); 
+
             if(m === 'host') {
                 myRoom = prompt("Tạo Mã Phòng:") || "OLP";
                 document.getElementById('roomIdDisplay').innerText = myRoom;
@@ -261,8 +247,11 @@
             } else if (m === 'viewer') {
                 myRoom = prompt("Nhập Mã Phòng:") || "OLP";
                 document.getElementById('viewerContainer').style.display = 'block';
-                document.body.addEventListener('click', () => {}, {once:true});
-                alert("Click để bật âm thanh & Fullscreen!");
+                document.body.addEventListener('click', () => {
+                    // Click thêm lần nữa vào màn hình Viewer để chắc chắn âm thanh được bật
+                    warmUpAudio(); 
+                }, {once:true});
+                alert("Click vào màn hình để bật âm thanh & Fullscreen!");
                 socket.emit('joinRoom', { roomId: myRoom, isViewer: true });
             }
         }
@@ -289,10 +278,9 @@
             socket.emit('joinRoom', { roomId: myRoom, playerName: name });
         }
         
-        // --- UPDATED HANDLE ENTER WITH .toUpperCase() ---
         function handleEnter(e) {
             if(e.key === 'Enter' && !e.target.disabled) {
-                const val = e.target.value.trim().toUpperCase(); // <-- FORCE UPPERCASE
+                const val = e.target.value.trim().toUpperCase(); 
                 if(val) { socket.emit('submitAnswer', { roomId: myRoom, answer: val }); e.target.value = ''; }
             }
         }
@@ -316,6 +304,7 @@
                 document.getElementById('privateMsgPopup').style.display = 'block';
             }
         });
+        
         socket.on('mediaControl', (data) => {
             const vTimer = document.getElementById('timerDisplay');
             const mcTimer = document.getElementById('mcTimerDisplay');
@@ -355,12 +344,14 @@
                     else if(data.audio === 'timer15') document.getElementById('s_timer15').play();
                     else if(data.audio === 'timer30') document.getElementById('s_timer30').play();
                 }
-                if(vTimer && mode === 'viewer') vTimer.style.display = 'block';
+                
+                if(vTimer && mode === 'viewer') vTimer.style.display = 'none'; 
+
                 if(pTimer && mode === 'player') pTimer.style.display = 'block';
                 let t = data.duration;
                 const updateAll = (val) => {
                     const displayVal = val < 10 ? '0' + val : val;
-                    if(vTimer) vTimer.innerText = val;
+                    if(vTimer) vTimer.innerText = val; 
                     if(mcTimer) mcTimer.innerText = displayVal;
                     if(pTimer) pTimer.innerText = displayVal;
                 };
