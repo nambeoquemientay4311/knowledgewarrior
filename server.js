@@ -102,7 +102,11 @@ io.on('connection', (socket) => {
         const room = rooms[data.roomId];
         if (!room) return;
 
-        if (data.action === 'startTimer') {
+        if (data.action === 'playSfx') {
+            io.to(data.roomId).emit('mediaControl', { action: 'playSfx', type: data.type });
+            return;
+        }
+
             if (activeTimer) clearTimeout(activeTimer);
             const duration = data.duration; 
 
