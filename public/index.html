@@ -3,20 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Olympia System</title>
+    <title>Olympia Control</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; }
+        
+        /* VIEWER CSS */
         #viewerContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; z-index: 9999; overflow: hidden; }
-
-        /* --- CSS TĂNG TỐC --- */
-        #ttViewer { display: none; width: 100%; height: 100%; position: relative; color: white; }
+        #ttViewer, #vncvViewer { width: 100%; height: 100%; position: relative; }
+        
+        /* TANG TOC CSS */
         #ttBgVideo { position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; z-index: 0; }
         #ttWaitingImg { position: absolute; top:0; left:0; width:100%; height:100%; object-fit: cover; z-index: 100; }
         #ttTimerVideo { position: absolute; bottom: 2%; right: 2%; width: 15%; z-index: 10; mix-blend-mode: screen; }
         #ttQuestionBox { position: absolute; top: 4%; left: 5%; width: 90%; height: 18%; display: flex; align-items: center; justify-content: center; z-index: 10; }
-        #ttQuestionText { font-size: 3vw; font-weight: bold; text-align: center; text-transform: uppercase; text-shadow: 2px 2px 4px black; }
+        #ttQuestionText { font-size: 3vw; font-weight: bold; text-align: center; text-transform: uppercase; text-shadow: 2px 2px 4px black; color: white; }
         #ttDataBox { position: absolute; top: 24%; left: 5%; width: 90%; height: 70%; display: flex; align-items: center; justify-content: center; z-index: 10; }
         #ttDataContent { font-size: 5vw; color: #ffeb3b; font-weight: bold; text-shadow: 2px 2px 4px black; }
         #ttDataImage { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -25,22 +27,20 @@
         #ttBuzzerImg { width: 100%; border: 4px solid white; border-radius: 15px; box-shadow: 0 0 30px white; }
         #ttPlayerName { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 4vw; font-weight: 900; color: white; text-transform: uppercase; text-shadow: 2px 2px 0 #000; width: 100%; text-align: center; }
 
-        /* --- CSS Ô MẠO HIỂM (CŨ) --- */
-        #vncvViewer { display: none; width: 100%; height: 100%; position: relative; background: white; color: black; }
+        /* VNCV CSS */
         #vncvBg { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
         #vncvContent { position: absolute; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .vncv-question { background: rgba(0,0,139,0.9); color: white; padding: 30px; font-size: 3rem; border-radius: 20px; text-align: center; max-width: 90%; border: 5px solid gold; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .vncv-question { background: rgba(0,0,139,0.9); color: white; padding: 30px; font-size: 3rem; border-radius: 20px; text-align: center; max-width: 90%; border: 5px solid gold; }
         #vncvTimer { font-size: 8rem; color: red; font-weight: bold; margin-top: 30px; }
 
-        /* --- CSS BUTTON TĂNG TỐC --- */
-        .buzz-btn { width: 250px; height: 250px; border-radius: 50%; border: 8px solid #ccc; font-size: 2rem; font-weight: bold; background: #444; color: #aaa; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        /* PLAYER BUTTON CSS */
+        .buzz-btn { width: 250px; height: 250px; border-radius: 50%; border: 8px solid #ccc; font-size: 2rem; font-weight: bold; background: #444; color: #aaa; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: all 0.2s; }
         .buzz-btn.active { background: #dc3545; border-color: #ff6b6b; color: white; cursor: pointer; box-shadow: 0 0 30px rgba(220, 53, 69, 0.8); }
 
         @keyframes bounceIn { 0% { transform: translateX(-50%) scale(0.3); opacity: 0; } 50% { transform: translateX(-50%) scale(1.05); opacity: 1; } 100% { transform: translateX(-50%) scale(1); } }
     </style>
 </head>
 <body>
-
     <div id="loginScreen" class="container mt-5" style="max-width: 500px;">
         <div class="card shadow">
             <div class="card-body">
@@ -65,7 +65,6 @@
                 <button class="btn btn-warning ms-2" onclick="location.reload()">Thoát</button>
             </div>
         </div>
-
         <div class="card mb-3 border-dark">
             <div class="card-body bg-light">
                 <h5>🔀 CHỌN VÒNG:</h5>
@@ -73,40 +72,34 @@
                 <button class="btn btn-outline-danger fw-bold" onclick="switchRound('TANGTOC')">TĂNG TỐC</button>
             </div>
         </div>
-
         <div id="ctrlVNCV" style="display: none;">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white">ĐIỀU KHIỂN: Ô MẠO HIỂM</div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <input type="text" id="vncvQ" class="form-control" placeholder="Nhập câu hỏi...">
-                        <button class="btn btn-info mt-2" onclick="socket.emit('updateVncvQuestion', {roomId: myRoomId, text: document.getElementById('vncvQ').value})">Hiện câu hỏi</button>
-                    </div>
-                    <div class="mb-3">
+                    <input type="text" id="vncvQ" class="form-control mb-2" placeholder="Nhập câu hỏi...">
+                    <button class="btn btn-info mb-3" onclick="socket.emit('updateVncvQuestion', {roomId: myRoomId, text: document.getElementById('vncvQ').value})">Hiện câu hỏi</button>
+                    <div>
                         <button class="btn btn-success me-2" onclick="controlMedia('startTimer', 15)">⏱️ 15s (Mở khóa)</button>
                         <button class="btn btn-warning me-2" onclick="controlMedia('startTimer', 30)">⏱️ 30s (Mở khóa)</button>
                         <button class="btn btn-danger" onclick="controlMedia('stop')">⏹️ Dừng/Khóa</button>
                     </div>
+                    <hr>
                     <h6>Danh sách trả lời:</h6>
                     <ul class="list-group" id="vncvAnswerList"></ul>
                 </div>
             </div>
         </div>
-
         <div id="ctrlTangToc" style="display: none;">
             <div class="card border-danger">
                 <div class="card-header bg-danger text-white">ĐIỀU KHIỂN: TĂNG TỐC</div>
                 <div class="card-body">
-                    <div class="mb-2">
-                        <input type="text" id="ttInputText" class="form-control mb-1" placeholder="Câu hỏi...">
-                        <input type="text" id="ttInputData" class="form-control" placeholder="Dữ kiện (Link ảnh/Text)">
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-success" onclick="ttAction('start')">▶️ BẮT ĐẦU</button>
-                        <button class="btn btn-warning" onclick="ttAction('continue')">⏯️ SAI/TIẾP</button>
-                        <button class="btn btn-secondary" onclick="ttAction('reset')">⏹️ RESET</button>
-                    </div>
-                    <div class="mt-3 alert alert-secondary">
+                    <input type="text" id="ttInputText" class="form-control mb-1" placeholder="Câu hỏi...">
+                    <input type="text" id="ttInputData" class="form-control mb-2" placeholder="Dữ kiện (Link ảnh/Text)">
+                    <button class="btn btn-success" onclick="ttAction('start')">▶️ BẮT ĐẦU</button>
+                    <button class="btn btn-warning" onclick="ttAction('continue')">⏯️ SAI/TIẾP</button>
+                    <button class="btn btn-secondary" onclick="ttAction('reset')">⏹️ RESET</button>
+                    <hr>
+                    <div class="alert alert-secondary">
                         <strong>Buzz: </strong> <span id="ttBuzzedName" class="text-danger fw-bold">...</span>
                     </div>
                 </div>
@@ -115,22 +108,20 @@
     </div>
 
     <div id="playerScreen" class="container mt-4" style="display: none;">
-        <div class="d-flex justify-content-between align-items-center">
+        
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <h4 id="pNameDisplay">Thí sinh</h4>
-            <button class="btn btn-sm btn-outline-secondary" onclick="requestFullscreen()">Full Screen</button>
+            <button id="btnFS" class="btn btn-sm btn-outline-secondary" onclick="requestFullscreen()">Full Screen</button>
         </div>
-        <hr>
 
-        <div id="pVNCV" style="display: none;">
-            <div class="card shadow-sm">
+        <div id="UI_VNCV" style="display: none;">
+            <div class="card shadow-lg border-primary">
+                <div class="card-header bg-primary text-white text-center fw-bold">TRẢ LỜI CÂU HỎI</div>
                 <div class="card-body text-center">
-                    <h5 class="card-title mb-3">VƯỢT CHƯỚNG NGẠI VẬT</h5>
                     
-                    <div id="pQuestion" class="alert alert-info fw-bold" style="min-height: 60px;">
-                        </div>
+                    <div id="pQuestion" class="alert alert-info fw-bold" style="min-height: 60px;"></div>
 
-                    <div id="inputStatus" class="small text-end mb-2 fw-bold text-muted">
-                        </div>
+                    <div id="inputStatus" class="small text-end mb-2 fw-bold text-muted">Khóa</div>
 
                     <input type="text" id="answerInput" class="form-control form-control-lg text-center mb-3" placeholder="Nhập đáp án..." disabled>
                     
@@ -143,17 +134,20 @@
             </div>
         </div>
 
-        <div id="pTangToc" class="d-flex flex-column align-items-center" style="display: none;">
-            <h3 class="mb-4">VÒNG TĂNG TỐC</h3>
-            <button id="ttBuzzBtn" class="buzz-btn" onclick="ttPlayerBuzz()">BẤM CHUÔNG</button>
-            <h3 id="ttStatusMsg" class="mt-4 text-info"></h3>
+        <div id="UI_TANGTOC" style="display: none;">
+            <div class="d-flex flex-column align-items-center justify-content-center" style="height: 60vh;">
+                <h2 class="mb-4 text-danger fw-bold">VÒNG TĂNG TỐC</h2>
+                <button id="ttBuzzBtn" class="buzz-btn" onclick="ttPlayerBuzz()">BẤM CHUÔNG</button>
+                <h3 id="ttStatusMsg" class="mt-4 text-info fw-bold">...</h3>
+            </div>
         </div>
+
     </div>
 
     <div id="mcScreen" class="container mt-4" style="display: none;">
-        <h2>🎤 GIAO DIỆN MC</h2>
-        <div class="card mt-3">
-            <div class="card-body text-center">
+        <h2>🎤 MC VIEW</h2>
+        <div class="card mt-5 shadow">
+            <div class="card-body text-center p-5">
                 <h1 class="display-1 fw-bold text-primary" id="mcBigText">...</h1>
                 <h3 class="text-secondary" id="mcSubText"></h3>
             </div>
@@ -161,28 +155,17 @@
     </div>
 
     <div id="viewerContainer">
-        <div id="ttViewer">
+        <div id="ttViewer" style="display:none;">
             <img id="ttWaitingImg" src="/waiting_bg.jpg">
             <video id="ttBgVideo" loop muted><source src="/question_bg.mp4" type="video/mp4"></video>
             <video id="ttTimerVideo" muted playsinline><source src="/timer.mp4" type="video/mp4"></video>
             <div id="ttQuestionBox"><div id="ttQuestionText"></div></div>
-            <div id="ttDataBox">
-                <div id="ttDataContent"></div>
-                <img id="ttDataImage" src="" style="display:none;">
-            </div>
-            <div id="ttBuzzerOverlay">
-                <div id="ttBuzzerFrame">
-                    <img id="ttBuzzerImg" src="/buzzer_frame.png">
-                    <div id="ttPlayerName"></div>
-                </div>
-            </div>
+            <div id="ttDataBox"><div id="ttDataContent"></div><img id="ttDataImage" src="" style="display:none;"></div>
+            <div id="ttBuzzerOverlay"><div id="ttBuzzerFrame"><img id="ttBuzzerImg" src="/buzzer_frame.png"><div id="ttPlayerName"></div></div></div>
         </div>
-        <div id="vncvViewer">
+        <div id="vncvViewer" style="display:none;">
             <img id="vncvBg" src="/waiting_bg.jpg" style="opacity: 0.3;"> 
-            <div id="vncvContent">
-                <div class="vncv-question" id="vncvViewerQ">CHỜ CÂU HỎI...</div>
-                <h1 id="vncvTimer"></h1>
-            </div>
+            <div id="vncvContent"><div class="vncv-question" id="vncvViewerQ">CHỜ CÂU HỎI...</div><h1 id="vncvTimer"></h1></div>
         </div>
         <audio id="sfxBuzzer" src="/buzzer_sound.mp3"></audio>
         <audio id="sfxTimer15" src="/timer15.mp3"></audio>
@@ -196,7 +179,7 @@
         function joinGame(role) {
             const r = document.getElementById('roomId').value;
             const n = document.getElementById('playerName').value;
-            if(!r) return alert("Thiếu tên phòng");
+            if(!r) return alert("Nhập tên phòng!");
             myRole = role; myRoomId = r;
             socket.emit('joinRoom', { roomId: r, playerName: n||role, isHost: role==='HOST', isViewer: role==='VIEWER', isMC: role==='MC' });
             
@@ -206,8 +189,8 @@
             if(role==='PLAYER') {
                 document.getElementById('playerScreen').style.display='block';
                 document.getElementById('pNameDisplay').innerText = "Thí sinh: " + n;
-                // Check fullscreen loop cho logic cũ
-                setInterval(checkFullscreenLogic, 1000); 
+                // Bật vòng lặp check logic cũ
+                setInterval(checkLogicPlayer, 1000); 
             }
             if(role==='VIEWER') document.getElementById('viewerContainer').style.display='block';
         }
@@ -215,99 +198,91 @@
         socket.on('connect', () => myId = socket.id);
 
         socket.on('updateState', (room) => {
-            updateRoundUI(room);
-            if(myRole==='VIEWER') renderViewer(room);
-            if(myRole==='HOST') renderHost(room);
-            if(myRole==='PLAYER') renderPlayer(room);
-            if(myRole==='MC') renderMC(room);
-        });
-
-        socket.on('mediaControl', (data) => {
-            if(myRole === 'VIEWER') {
-                if(data.action === 'startTimer') {
-                    document.getElementById('vncvTimer').innerText = data.duration;
-                    let count = data.duration;
-                    const interval = setInterval(() => {
-                        count--;
-                        document.getElementById('vncvTimer').innerText = count;
-                        if(count <= 0) { clearInterval(interval); document.getElementById('vncvTimer').innerText = "HẾT GIỜ"; }
-                    }, 1000);
-                    const audio = (data.duration === 15) ? document.getElementById('sfxTimer15') : document.getElementById('sfxTimer30');
-                    if(audio) { audio.currentTime = 0; audio.play().catch(()=>{}); }
-                } else if(data.action === 'stop') {
-                    document.getElementById('vncvTimer').innerText = "";
-                    ['sfxTimer15', 'sfxTimer30'].forEach(id => { const aud = document.getElementById(id); if(aud) { aud.pause(); aud.currentTime=0; } });
+            // UI Host
+            if(myRole === 'HOST') {
+                document.getElementById('roundLabel').innerText = room.roundType;
+                document.getElementById('ctrlTangToc').style.display = (room.roundType === 'TANGTOC') ? 'block' : 'none';
+                document.getElementById('ctrlVNCV').style.display = (room.roundType === 'VNCV') ? 'block' : 'none';
+                
+                if(room.roundType === 'VNCV') {
+                    const list = document.getElementById('vncvAnswerList');
+                    list.innerHTML = "";
+                    for(const pid in room.players) {
+                        const p = room.players[pid];
+                        if(!p.isHost && !p.isViewer && !p.isMC) {
+                            list.innerHTML += `<li class="list-group-item d-flex justify-content-between"><span>${p.name}</span><span class="fw-bold text-primary">${p.lastAnswer || "..."}</span></li>`;
+                        }
+                    }
+                } else {
+                    document.getElementById('ttBuzzedName').innerText = room.tangtoc.buzzedPlayer?.name || "...";
                 }
             }
+
+            // UI PLAYER (QUAN TRỌNG: TÁCH LOGIC TẠI ĐÂY)
+            if(myRole === 'PLAYER') renderPlayer(room);
+
+            if(myRole === 'VIEWER') renderViewer(room);
+            if(myRole === 'MC') renderMC(room);
         });
 
-        socket.on('playSound', (s) => {
-            if(myRole === 'VIEWER' || myRole === 'HOST' || myRole === 'MC') {
-                if(s==='buzzer') document.getElementById('sfxBuzzer').play();
-            }
-        });
-
-        function updateRoundUI(room) {
-            const isTT = room.roundType === 'TANGTOC';
-            
-            if(document.getElementById('hostScreen').style.display !== 'none') {
-                document.getElementById('roundLabel').innerText = isTT ? "TĂNG TỐC" : "Ô MẠO HIỂM";
-                document.getElementById('ctrlTangToc').style.display = isTT ? 'block' : 'none';
-                document.getElementById('ctrlVNCV').style.display = isTT ? 'none' : 'block';
-            }
-            if(document.getElementById('playerScreen').style.display !== 'none') {
-                document.getElementById('pTangToc').style.display = isTT ? 'flex' : 'none';
-                document.getElementById('pVNCV').style.display = isTT ? 'none' : 'block';
-            }
-        }
-
-        // --- RENDER PLAYER (QUAN TRỌNG: LOGIC CŨ ĐƯỢC KHÔI PHỤC TẠI ĐÂY) ---
-        let currentRoomState = null; // Lưu state để check fullscreen loop dùng
+        // --- HÀM RENDER PLAYER ---
+        let currentPlayerRoom = null; 
         function renderPlayer(room) {
-            currentRoomState = room; // Cập nhật state mới nhất
+            currentPlayerRoom = room; 
             
-            if(room.roundType === 'TANGTOC') {
-                // Logic Tăng tốc mới
+            const uiVNCV = document.getElementById('UI_VNCV');
+            const uiTT = document.getElementById('UI_TANGTOC');
+            const btnFS = document.getElementById('btnFS');
+
+            if(room.roundType === 'VNCV') {
+                // CHỈ HIỆN UI VNCV
+                uiVNCV.style.display = 'block';
+                uiTT.style.display = 'none';
+                btnFS.style.display = 'block'; // VNCV cần nút này
+
+                const p = room.players[myId];
+                const qBox = document.getElementById('pQuestion');
+                
+                // Logic hiển thị câu hỏi (check targetPlayer)
+                if(room.vncv.question) {
+                    if(room.vncv.targetPlayerId && room.vncv.targetPlayerId !== myId) qBox.innerText = ""; 
+                    else qBox.innerText = room.vncv.question;
+                } else { qBox.innerText = "Chờ câu hỏi..."; }
+
+                document.getElementById('pSubmitted').innerText = (p && p.lastAnswer) ? p.lastAnswer : "...";
+                
+            } else {
+                // CHỈ HIỆN UI TĂNG TỐC
+                uiVNCV.style.display = 'none';
+                uiTT.style.display = 'block';
+                btnFS.style.display = 'none'; // Tăng tốc ko cần
+
                 const btn = document.getElementById('ttBuzzBtn');
                 const msg = document.getElementById('ttStatusMsg');
                 const st = room.tangtoc;
                 
                 btn.className = "buzz-btn"; msg.innerText="";
-                if(st.status==='SHOW_QUESTION') { btn.classList.add('active'); btn.disabled=false; msg.innerText="BẤM ĐI!"; }
-                else if(st.status==='BUZZED') { 
+                if(st.status==='SHOW_QUESTION') { 
+                    btn.classList.add('active'); btn.disabled=false; msg.innerText="BẤM ĐI!"; 
+                } else if(st.status==='BUZZED') { 
                     btn.disabled=true; 
-                    msg.innerText = (st.buzzedPlayer?.id===myId) ? "BẠN ĐÃ GIÀNH QUYỀN!" : `${st.buzzedPlayer?.name} ĐÃ BẤM`;
-                    if(st.buzzedPlayer?.id===myId) btn.style.background="green";
+                    if(st.buzzedPlayer?.id===myId) {
+                        msg.innerText = "BẠN ĐÃ GIÀNH QUYỀN!"; btn.style.background="green";
+                    } else {
+                        msg.innerText = `${st.buzzedPlayer?.name} ĐÃ BẤM!`;
+                    }
+                } else { 
+                    btn.disabled=true; msg.innerText="Chờ..."; 
                 }
-                else { btn.disabled=true; msg.innerText="Chờ..."; }
-            } else {
-                // === LOGIC VNCV CŨ ===
-                const p = room.players[myId];
-                const vncv = room.vncv;
-                
-                // Hiển thị câu hỏi
-                const qBox = document.getElementById('pQuestion');
-                if(vncv.question) {
-                    // Nếu có targetPlayer và không phải mình -> Ẩn câu hỏi (Logic cũ của bạn)
-                    if(vncv.targetPlayerId && vncv.targetPlayerId !== myId) qBox.innerText = ""; 
-                    else qBox.innerText = vncv.question;
-                } else { qBox.innerText = "Chờ câu hỏi..."; }
-
-                // Hiển thị đáp án đã gửi
-                if(p && p.lastAnswer) document.getElementById('pSubmitted').innerText = p.lastAnswer;
-                else document.getElementById('pSubmitted').innerText = "...";
-
-                // Logic check quyền nhập liệu được gọi liên tục bởi setInterval(checkFullscreenLogic)
-                // để đảm bảo realtime khi người dùng bật/tắt fullscreen
             }
         }
 
-        // Hàm loop kiểm tra điều kiện nhập liệu (Fullscreen + Logic server)
-        function checkFullscreenLogic() {
-            if(!currentRoomState || currentRoomState.roundType !== 'VNCV') return;
+        // --- HÀM CHECK LOGIC FULLSCREEN CỦA VNCV ---
+        function checkLogicPlayer() {
+            // Chỉ chạy khi đang ở vòng VNCV
+            if(!currentPlayerRoom || currentPlayerRoom.roundType !== 'VNCV') return;
 
-            const room = currentRoomState;
-            const vncv = room.vncv;
+            const room = currentPlayerRoom;
             const input = document.getElementById('answerInput');
             const st = document.getElementById('inputStatus');
             
@@ -315,36 +290,38 @@
             let statusText = "Khóa";
             let statusClass = "text-muted";
 
-            // Logic cũ của bạn:
-            if (vncv.targetPlayerId) {
-                if (vncv.targetPlayerId === myId && vncv.isInputOpen) {
+            // Check logic Server
+            if (room.vncv.targetPlayerId) {
+                if (room.vncv.targetPlayerId === myId && room.vncv.isInputOpen) {
                     canType = true; statusText = "Được phép trả lời"; statusClass = "text-success";
                 }
             } else if (room.answerMode === 'unlocked') {
                 canType = true; statusText = "Được phép trả lời chung"; statusClass = "text-primary";
             }
 
-            // Check fullscreen
+            // Check logic Fullscreen (Yêu cầu của bạn)
             if (!document.fullscreenElement) {
                 canType = false; 
-                statusText = "BỊ KHÓA: VUI LÒNG BẬT FULLSCREEN!"; 
+                statusText = "BỊ KHÓA: HÃY BẬT FULLSCREEN!"; 
                 statusClass = "text-danger";
             }
 
             input.disabled = !canType;
-            if(canType) input.focus();
+            if(canType && document.activeElement !== input) input.focus();
             
             st.innerText = statusText;
             st.className = `small text-end mb-2 fw-bold ${statusClass}`;
         }
 
-        function submitVncvAnswer() {
-            const ans = document.getElementById('answerInput').value;
-            socket.emit('submitAnswer', { roomId: myRoomId, answer: ans });
-        }
+        // ACTIONS
+        function submitVncvAnswer() { socket.emit('submitAnswer', { roomId: myRoomId, answer: document.getElementById('answerInput').value }); }
         function requestFullscreen() { document.documentElement.requestFullscreen(); }
+        function ttPlayerBuzz() { socket.emit('ttBuzz', {roomId: myRoomId}); }
+        function switchRound(t) { socket.emit('switchRound', {roomId: myRoomId, type: t}); }
+        function ttAction(a) { socket.emit('ttControl', {roomId: myRoomId, action: a, data:{text: document.getElementById('ttInputText').value, media: document.getElementById('ttInputData').value}}); }
+        function controlMedia(a, d) { socket.emit('controlMedia', {roomId: myRoomId, action: a, duration: d}); }
 
-        // --- RENDER VIEWER ---
+        // RENDER VIEWER
         function renderViewer(room) {
             const ttV = document.getElementById('ttViewer');
             const vncvV = document.getElementById('vncvViewer');
@@ -358,15 +335,11 @@
                     document.getElementById('ttWaitingImg').style.display = 'none';
                     document.getElementById('ttQuestionText').innerText = st.questionText;
                     const isImg = st.questionData.includes('http') || st.questionData.match(/\.(jpg|png)$/);
-                    if(isImg) {
-                        document.getElementById('ttDataImage').src=st.questionData;
-                        document.getElementById('ttDataImage').style.display='block';
-                        document.getElementById('ttDataContent').style.display='none';
-                    } else {
-                        document.getElementById('ttDataContent').innerText=st.questionData;
-                        document.getElementById('ttDataContent').style.display='block';
-                        document.getElementById('ttDataImage').style.display='none';
-                    }
+                    document.getElementById('ttDataImage').src = isImg ? st.questionData : "";
+                    document.getElementById('ttDataImage').style.display = isImg ? 'block' : 'none';
+                    document.getElementById('ttDataContent').innerText = isImg ? "" : st.questionData;
+                    document.getElementById('ttDataContent').style.display = isImg ? 'none' : 'block';
+                    
                     const tmr = document.getElementById('ttTimerVideo');
                     if(st.status === 'SHOW_QUESTION') {
                         tmr.style.display = 'block'; tmr.play().catch(()=>{});
@@ -387,45 +360,29 @@
 
         function renderMC(room) {
             if(room.roundType === 'TANGTOC') {
-                if(room.tangtoc.buzzedPlayer) {
-                    document.getElementById('mcBigText').innerText = room.tangtoc.buzzedPlayer.name;
-                    document.getElementById('mcSubText').innerText = "Đã bấm chuông!";
-                } else {
-                    document.getElementById('mcBigText').innerText = "...";
-                    document.getElementById('mcSubText').innerText = "Đang chờ...";
-                }
+                document.getElementById('mcBigText').innerText = room.tangtoc.buzzedPlayer ? room.tangtoc.buzzedPlayer.name : "...";
+                document.getElementById('mcSubText').innerText = room.tangtoc.buzzedPlayer ? "ĐÃ GIÀNH QUYỀN!" : "VÒNG TĂNG TỐC";
             } else {
-                document.getElementById('mcBigText').innerText = "VÒNG Ô MẠO HIỂM";
+                document.getElementById('mcBigText').innerText = "VNCV";
                 document.getElementById('mcSubText').innerText = room.vncv.question;
             }
         }
-
-        function renderHost(room) {
-            if(room.roundType === 'VNCV') {
-                const list = document.getElementById('vncvAnswerList');
-                list.innerHTML = "";
-                for(const pid in room.players) {
-                    const p = room.players[pid];
-                    if(!p.isHost && !p.isViewer && !p.isMC) {
-                        const li = document.createElement('li');
-                        li.className = "list-group-item d-flex justify-content-between";
-                        li.innerHTML = `<span>${p.name}</span> <span class="fw-bold text-primary">${p.lastAnswer || "..."}</span>`;
-                        list.appendChild(li);
-                    }
+        
+        socket.on('mediaControl', (data) => {
+            if(myRole==='VIEWER') {
+                if(data.action === 'startTimer') {
+                    document.getElementById('vncvTimer').innerText = data.duration;
+                    let c = data.duration;
+                    const i = setInterval(() => { c--; document.getElementById('vncvTimer').innerText = c; if(c<=0) clearInterval(i); }, 1000);
+                    const aud = (data.duration===15)?document.getElementById('sfxTimer15'):document.getElementById('sfxTimer30');
+                    if(aud){aud.currentTime=0; aud.play().catch(()=>{});}
+                } else if (data.action === 'stop') {
+                    document.getElementById('vncvTimer').innerText="";
+                    document.getElementById('sfxTimer15').pause(); document.getElementById('sfxTimer30').pause();
                 }
-            } else {
-                document.getElementById('ttBuzzedName').innerText = room.tangtoc.buzzedPlayer?.name || "...";
             }
-        }
-
-        function switchRound(t) { socket.emit('switchRound', {roomId: myRoomId, type: t}); }
-        function ttAction(a) {
-            const t = document.getElementById('ttInputText').value;
-            const d = document.getElementById('ttInputData').value;
-            socket.emit('ttControl', {roomId: myRoomId, action: a, data:{text:t, media:d}});
-        }
-        function ttPlayerBuzz() { socket.emit('ttBuzz', {roomId: myRoomId}); }
-        function controlMedia(action, duration) { socket.emit('controlMedia', {roomId: myRoomId, action, duration}); }
+        });
+        socket.on('playSound', (s) => { if(['VIEWER','HOST','MC'].includes(myRole) && s==='buzzer') document.getElementById('sfxBuzzer').play(); });
     </script>
 </body>
 </html>

@@ -29,7 +29,7 @@ io.on('connection', (socket) => {
     socket.emit('roomListUpdate', getPublicRooms());
     socket.on('requestRoomList', () => socket.emit('roomListUpdate', getPublicRooms()));
 
-    // --- JOIN ROOM ---
+    // JOIN ROOM
     socket.on('joinRoom', ({ roomId, playerName, isHost, isViewer, isMC }) => {
         if (!isHost && !rooms[roomId]) {
             socket.emit('errorMessage', `❌ Lỗi: Phòng '${roomId}' không tồn tại!`);
@@ -41,7 +41,7 @@ io.on('connection', (socket) => {
         if (!rooms[roomId]) {
             rooms[roomId] = {
                 hostId: null,
-                roundType: 'VNCV', // Mặc định VNCV
+                roundType: 'VNCV', 
                 
                 // STATE VNCV
                 vncv: {
@@ -51,7 +51,7 @@ io.on('connection', (socket) => {
                 },
                 answerMode: 'hostLocked', 
 
-                // STATE TĂNG TỐC
+                // STATE TANG TOC
                 tangtoc: {
                     status: 'IDLE',
                     questionText: "",
@@ -65,12 +65,7 @@ io.on('connection', (socket) => {
 
         const room = rooms[roomId];
         room.players[socket.id] = {
-            id: socket.id,
-            name: playerName,
-            isHost: isHost,
-            isViewer: isViewer,
-            isMC: isMC,
-            lastAnswer: "" 
+            id: socket.id, name: playerName, isHost, isViewer, isMC, lastAnswer: "" 
         };
 
         if (isHost) room.hostId = socket.id;
@@ -78,25 +73,22 @@ io.on('connection', (socket) => {
         io.emit('roomListUpdate', getPublicRooms());
     });
 
-    // --- CHUYỂN VÒNG ---
+    // CHUYỂN VÒNG
     socket.on('switchRound', ({ roomId, type }) => {
         if (rooms[roomId]) {
             rooms[roomId].roundType = type;
-            
-            // Reset sạch sẽ khi chuyển vòng
             if (type === 'TANGTOC') {
                 rooms[roomId].tangtoc.status = 'IDLE';
                 rooms[roomId].tangtoc.buzzedPlayer = null;
             } else {
                 rooms[roomId].vncv.isInputOpen = false;
                 rooms[roomId].answerMode = 'hostLocked';
-                if(activeTimer) clearTimeout(activeTimer);
             }
             io.to(roomId).emit('updateState', rooms[roomId]);
         }
     });
 
-    // --- LOGIC VNCV ---
+    // LOGIC VNCV
     socket.on('updateVncvQuestion', ({ roomId, text }) => {
         if (rooms[roomId]) {
             rooms[roomId].vncv.question = text;
@@ -111,7 +103,6 @@ io.on('connection', (socket) => {
         if (data.action === 'startTimer') {
             if (activeTimer) clearTimeout(activeTimer);
             const duration = data.duration;
-            
             room.vncv.isInputOpen = true; 
             room.answerMode = 'unlocked';
 
@@ -143,7 +134,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- LOGIC TĂNG TỐC ---
+    // LOGIC TANG TOC
     socket.on('ttControl', ({ roomId, action, data }) => {
         const room = rooms[roomId];
         if (!room) return;
