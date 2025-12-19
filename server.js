@@ -12,6 +12,7 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
+let activeTimer = null; // Biến lưu timer của server
 
 // Hàm lấy danh sách phòng
 function getPublicRooms() {
@@ -26,11 +27,11 @@ function getPublicRooms() {
 }
 
 io.on('connection', (socket) => {
-    // Gửi danh sách phòng khi mới vào
+    // Gửi list phòng
     socket.emit('roomListUpdate', getPublicRooms());
     socket.on('requestRoomList', () => socket.emit('roomListUpdate', getPublicRooms()));
 
-    // --- TẠO / VÀO PHÒNG ---
+    // --- JOIN ROOM ---
     socket.on('joinRoom', ({ roomId, playerName, isHost, isViewer, isMC }) => {
         if (!isHost && !rooms[roomId]) {
             socket.emit('errorMessage', `❌ Lỗi: Phòng '${roomId}' không tồn tại!`);
@@ -39,26 +40,25 @@ io.on('connection', (socket) => {
 
         socket.join(roomId);
 
-        // Khởi tạo phòng nếu chưa có
         if (!rooms[roomId]) {
             rooms[roomId] = {
                 hostId: null,
-                roundType: 'VNCV', // Mặc định là Vượt chướng ngại vật (VNCV) hoặc Ô Mạo Hiểm
+                roundType: 'VNCV', // Mặc định vào là Ô Mạo Hiểm
                 
-                // State cho VNCV / Ô Mạo Hiểm (Giữ nguyên logic cũ của bạn)
+                // STATE Ô MẠO HIỂM (CŨ - ĐÃ KHÔI PHỤC)
                 vncv: {
                     question: "",
-                    isInputOpen: false,
+                    isInputOpen: false, // Mở/đóng input trả lời
                     targetPlayerId: null,
                 },
                 answerMode: 'hostLocked', 
 
-                // State cho Tăng Tốc (MỚI)
+                // STATE TĂNG TỐC (MỚI)
                 tangtoc: {
-                    status: 'IDLE', // IDLE, SHOW_QUESTION, BUZZED
+                    status: 'IDLE',
                     questionText: "",
-                    questionData: "", // Dữ kiện hoặc Link ảnh
-                    buzzedPlayer: null // { id, name }
+                    questionData: "",
+                    buzzedPlayer: null 
                 },
 
                 players: {}
@@ -67,7 +67,6 @@ io.on('connection', (socket) => {
 
         const room = rooms[roomId];
 
-        // Đăng ký người chơi
         room.players[socket.id] = {
             id: socket.id,
             name: playerName,
@@ -75,34 +74,89 @@ io.on('connection', (socket) => {
             isViewer: isViewer,
             isMC: isMC,
             score: 0,
-            lastAnswer: "" // Dùng cho VNCV
+            lastAnswer: "" // Dùng lưu đáp án Ô Mạo Hiểm
         };
 
         if (isHost) room.hostId = socket.id;
 
-        // Gửi state cập nhật cho tất cả
         io.to(roomId).emit('updateState', room);
         io.emit('roomListUpdate', getPublicRooms());
     });
 
-    // --- HOST: CHUYỂN ĐỔI VÒNG CHƠI (QUAN TRỌNG) ---
+    // --- CHUYỂN VÒNG (DÙNG CHUNG) ---
     socket.on('switchRound', ({ roomId, type }) => {
         if (rooms[roomId]) {
             rooms[roomId].roundType = type; // 'VNCV' hoặc 'TANGTOC'
-            // Reset trạng thái Tăng tốc khi chuyển vào
-            if (type === 'TANGTOC') {
-                rooms[roomId].tangtoc = {
-                    status: 'IDLE',
-                    questionText: "",
-                    questionData: "",
-                    buzzedPlayer: null
-                };
+            
+            // Reset trạng thái khi chuyển để tránh lỗi hiển thị
+            if(type === 'TANGTOC') {
+                rooms[roomId].tangtoc.status = 'IDLE';
+                rooms[roomId].tangtoc.buzzedPlayer = null;
+            } else {
+                rooms[roomId].vncv.isInputOpen = false;
+                if(activeTimer) clearTimeout(activeTimer);
             }
+
             io.to(roomId).emit('updateState', rooms[roomId]);
         }
     });
 
-    // --- LOGIC TĂNG TỐC (MỚI) ---
+    // ===============================================================
+    // 1. LOGIC Ô MẠO HIỂM (CŨ - RESTORED)
+    // ===============================================================
+    
+    // Xử lý Timer và Media (15s / 30s)
+    socket.on('controlMedia', (data) => {
+        const room = rooms[data.roomId];
+        if (!room) return;
+
+        if (data.action === 'startTimer') {
+            if (activeTimer) clearTimeout(activeTimer);
+
+            const duration = data.duration; // 15 hoặc 30
+            room.vncv.isInputOpen = true; // Mở input cho thí sinh
+            
+            // Gửi lệnh play nhạc/video xuống Client
+            const audioFile = (duration === 15) ? 'timer15.mp3' : 'timer30.mp3'; 
+            io.to(data.roomId).emit('mediaControl', { action: 'startTimer', duration: duration, audio: audioFile });
+            io.to(data.roomId).emit('updateState', room);
+
+            // Đếm ngược trên Server để tự đóng input
+            activeTimer = setTimeout(() => {
+                room.vncv.isInputOpen = false;
+                io.to(data.roomId).emit('updateState', room);
+                io.to(data.roomId).emit('mediaControl', { action: 'timeUp' });
+            }, duration * 1000);
+
+        } else if (data.action === 'stop') {
+            if (activeTimer) clearTimeout(activeTimer);
+            room.vncv.isInputOpen = false;
+            io.to(data.roomId).emit('mediaControl', { action: 'stop' }); 
+            io.to(data.roomId).emit('updateState', room);
+        }
+    });
+
+    // Xử lý nộp đáp án (Chỉ cho Ô Mạo Hiểm)
+    socket.on('submitAnswer', ({ roomId, answer }) => {
+        const room = rooms[roomId];
+        // Chỉ nhận nếu đang mở input
+        if (room && room.vncv.isInputOpen) {
+            room.players[socket.id].lastAnswer = answer;
+            io.to(roomId).emit('updateState', room);
+        }
+    });
+
+    // Host cập nhật câu hỏi VNCV
+    socket.on('updateVncvQuestion', ({ roomId, text }) => {
+        if(rooms[roomId]) {
+            rooms[roomId].vncv.question = text;
+            io.to(roomId).emit('updateState', rooms[roomId]);
+        }
+    });
+
+    // ===============================================================
+    // 2. LOGIC TĂNG TỐC (MỚI)
+    // ===============================================================
     socket.on('ttControl', ({ roomId, action, data }) => {
         const room = rooms[roomId];
         if (!room) return;
@@ -111,14 +165,12 @@ io.on('connection', (socket) => {
             room.tangtoc.status = 'SHOW_QUESTION';
             room.tangtoc.questionText = data.text;
             room.tangtoc.questionData = data.media;
-            room.tangtoc.buzzedPlayer = null; // Reset người buzz
-            // Reset timer trên client sẽ được xử lý ở client khi nhận status mới
+            room.tangtoc.buzzedPlayer = null;
         } 
         else if (action === 'continue') {
-            // Host bấm "Tiếp tục" -> Ẩn buzzer, thời gian chạy tiếp
             if (room.tangtoc.status === 'BUZZED') {
-                room.tangtoc.status = 'SHOW_QUESTION';
-                room.tangtoc.buzzedPlayer = null;
+                room.tangtoc.status = 'SHOW_QUESTION'; // Quay lại hiện câu hỏi
+                room.tangtoc.buzzedPlayer = null;      // Ẩn khung tên
             }
         } 
         else if (action === 'reset') {
@@ -127,41 +179,28 @@ io.on('connection', (socket) => {
             room.tangtoc.questionData = "";
             room.tangtoc.buzzedPlayer = null;
         }
-
         io.to(roomId).emit('updateState', room);
     });
 
-    // --- PLAYER: TĂNG TỐC BUZZ ---
     socket.on('ttBuzz', ({ roomId }) => {
         const room = rooms[roomId];
-        if (!room) return;
-        
-        // Chỉ nhận Buzz nếu đang hiện câu hỏi và chưa ai Buzz
-        if (room.tangtoc.status === 'SHOW_QUESTION' && !room.tangtoc.buzzedPlayer) {
+        if (room && room.tangtoc.status === 'SHOW_QUESTION' && !room.tangtoc.buzzedPlayer) {
             const player = room.players[socket.id];
             if (player) {
                 room.tangtoc.status = 'BUZZED';
                 room.tangtoc.buzzedPlayer = { id: player.id, name: player.name };
                 io.to(roomId).emit('updateState', room);
-                
-                // Phát âm thanh Buzzer
                 io.to(roomId).emit('playSound', 'buzzer');
             }
         }
     });
 
-    // --- LOGIC VNCV CŨ (GIỮ NGUYÊN HOẶC RÚT GỌN NẾU CẦN) ---
-    // (Tôi giữ lại logic cơ bản để code cũ của bạn không bị lỗi)
-    socket.on('controlMedia', (data) => {
-         // ... (Logic cũ của bạn cho VNCV) ...
-    });
-    
-    // ... Xử lý disconnect ...
+    // --- DISCONNECT ---
     socket.on('disconnect', () => {
         for (const rId in rooms) {
             if (rooms[rId].players[socket.id]) {
                 delete rooms[rId].players[socket.id];
-                if (rooms[rId].hostId === socket.id) delete rooms[rId]; // Xóa phòng nếu host thoát
+                if (rooms[rId].hostId === socket.id) delete rooms[rId];
                 else io.to(rId).emit('updateState', rooms[rId]);
             }
         }
