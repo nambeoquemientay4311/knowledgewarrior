@@ -3,283 +3,437 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Olympia Control</title>
+    <title>Olympia Control Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 10px; }
-        
-        /* VIEWER (Màn hình lớn) */
-        #viewerContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; z-index: 9999; overflow: hidden; }
-        #vncvViewer { width: 100%; height: 100%; position: relative; }
-        #vncvBg { position: absolute; top:0; left:0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-        #vncvContent { position: absolute; z-index: 10; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .vncv-question { background: rgba(0,0,139,0.9); color: white; padding: 30px; font-size: 3rem; border-radius: 20px; text-align: center; max-width: 90%; border: 5px solid gold; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        #vncvTimer { font-size: 8rem; color: red; font-weight: bold; margin-top: 30px; text-shadow: 2px 2px 0 white; }
-
-        /* HOST & PLAYER */
-        .card { border-radius: 15px; }
+        /* GIỮ NGUYÊN CSS CŨ */
+        body { background-color: #ffffff; color: #333333; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }
+        #viewerContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: white; z-index: 9999; overflow: hidden; }
+        #viewerBg { position: absolute; width: 100vw; height: 100vh; object-fit: fill; z-index: 1; }
+        #timerDisplay { display: none; } /* Đã ẩn theo yêu cầu trước */
+        #viewerFsWarning { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 10000; color: red; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        #mcContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #ffffff; color: #000000; z-index: 5000; overflow: hidden; flex-direction: column; padding: 20px 40px; }
+        .mc-header-row { height: 15%; display: flex; justify-content: space-between; align-items: center; border-bottom: 4px solid #000000; margin-bottom: 10px; }
+        .mc-target-info { font-size: 2.5rem; color: #d35400; font-weight: 900; text-transform: uppercase; }
+        .mc-wager-text { color: #2e7d32; margin-left: 20px; font-weight: bold; }
+        .mc-timer-text { font-size: 5rem; color: #c0392b; font-weight: 900; line-height: 1; font-family: 'Courier New', monospace; }
+        .mc-question-area { height: 55%; font-size: 3.5rem; font-weight: bold; line-height: 1.4; color: #000000; overflow-y: auto; padding: 20px 0; display: flex; align-items: center; }
+        .mc-footer-row { height: 30%; display: flex; border-top: 4px solid #000000; padding-top: 10px; }
+        .mc-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-start; }
+        .mc-col-left { border-right: 4px solid #000000; padding-right: 20px; }
+        .mc-lbl-player { color: #004d40; font-size: 1.2rem; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
+        .mc-val-player { color: #00695c; font-size: 2.8rem; font-weight: 900; word-wrap: break-word; text-transform: uppercase; }
+        .mc-col-right { padding-left: 20px; }
+        .mc-lbl-correct { color: #880e4f; font-size: 1.2rem; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
+        .mc-val-correct { color: #c2185b; font-size: 2.8rem; font-weight: 900; word-wrap: break-word; }
+        #hostContainer { display: none; }
+        .host-top-bar { background: #fff; border-bottom: 1px solid #ddd; padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .host-card { background: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; height: 100%; border: 1px solid #eaeaea; }
+        .host-section-title { font-size: 1.1rem; font-weight: bold; color: #444; text-transform: uppercase; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .btn-custom { font-weight: bold; border-radius: 6px; }
+        #privateMsgPopup { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border: 5px solid #d63384; border-radius: 20px; padding: 40px; z-index: 999999; text-align: center; box-shadow: 0 0 100px rgba(0,0,0,0.5); width: 90%; max-width: 700px; }
+        #pMsgContent { font-size: 2.5rem; color: #000; font-weight: bold; margin: 30px 0; word-wrap: break-word; }
+        #playerGameScreen { display: none; max-width: 900px; margin: 0 auto; position: relative; }
+        #playerTimerDisplay { position: absolute; top: 10px; right: 10px; font-size: 3rem; font-weight: bold; color: #d9534f; display: none; background: #fff; padding: 0 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 2px solid #ccc; }
+        .p-title { color: #d9534f; font-weight: bold; text-transform: uppercase; text-align: center; font-size: 2.5rem; margin-bottom: 25px; }
+        .p-label { font-weight: bold; font-size: 1.2rem; color: #333; margin-bottom: 5px; margin-top: 15px; }
+        .p-question-box { background-color: #000000; color: #ffffff; width: 100%; min-height: 200px; padding: 20px; font-size: 1.6rem; display: block; border: 2px solid #000; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+        .p-input { background-color: #FFC0CB; border: 2px solid #333; width: 100%; height: 60px; padding: 0 15px; font-size: 1.5rem; color: #000; outline: none; font-weight: bold; text-transform: uppercase; }
+        .p-result-box { background-color: #87CEEB; width: 100%; height: 80px; padding: 0 15px; font-size: 1.6rem; font-weight: bold; color: #000000; display: flex; align-items: center; border: 1px solid #000; text-transform: uppercase; }
+        .fs-warning-text { color: red; font-weight: bold; font-size: 1.3rem; animation: blink 1s infinite; display: none; background: #fff3cd; padding: 10px; border: 2px solid red; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        #playerLoginScreen { max-width: 500px; margin: 50px auto; }
     </style>
 </head>
 <body>
 
-    <div id="loginScreen" class="container mt-5" style="max-width: 500px;">
-        <div class="card shadow">
-            <div class="card-body">
-                <h3 class="text-center mb-4">ĐĂNG NHẬP</h3>
-                <input type="text" id="roomId" class="form-control mb-3" placeholder="Tên phòng (VD: OLYMPIA)" value="OLYMPIA">
-                <input type="text" id="playerName" class="form-control mb-3" placeholder="Tên của bạn">
-                <div class="d-grid gap-2">
-                    <button class="btn btn-primary" onclick="joinGame('HOST')">HOST (Điều khiển)</button>
-                    <button class="btn btn-success" onclick="joinGame('PLAYER')">THÍ SINH</button>
-                    <button class="btn btn-secondary" onclick="joinGame('VIEWER')">VIEWER (TV)</button>
-                    <button class="btn btn-info" onclick="joinGame('MC')">MC</button>
+    <div id="privateMsgPopup" style="display: none;">
+        <h2 class="text-danger fw-bold text-uppercase">🔔 TIN NHẮN TỪ HOST</h2>
+        <div id="pMsgContent">...</div>
+        <button class="btn btn-dark btn-lg w-100" onclick="document.getElementById('privateMsgPopup').style.display='none'">ĐÃ ĐỌC & ĐÓNG</button>
+    </div>
+
+    <div id="modeSelector" class="card shadow mx-auto mt-5" style="max-width: 600px; display: block;">
+        <div class="card-header bg-primary text-white text-center"><h3>CHỌN CHẾ ĐỘ</h3></div>
+        <div class="card-body d-grid gap-3">
+            <button onclick="setMode('host')" class="btn btn-outline-danger btn-lg">🎛️ HOST (Điều Khiển)</button>
+            <button onclick="setMode('mc')" class="btn btn-outline-info btn-lg">🎤 MC (Dẫn Chương Trình)</button>
+            <button onclick="setMode('player')" class="btn btn-outline-success btn-lg">👤 THÍ SINH (Thi Đấu)</button>
+            <button onclick="setMode('viewer')" class="btn btn-outline-dark btn-lg">📺 VIEWER (Màn hình chiếu)</button>
+        </div>
+    </div>
+
+    <div id="hostContainer" style="display: none;">
+        <div class="host-top-bar">
+            <h4 class="m-0 fw-bold text-danger">🎛️ HOST DASHBOARD</h4>
+            <div>
+                <span class="me-3 fw-bold">Room: <span id="roomIdDisplay" class="text-primary">...</span></span>
+                <button onclick="resetRoom()" class="btn btn-warning btn-sm fw-bold">♻️ RESET GAME</button>
+            </div>
+        </div>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="host-card">
+                        <div class="host-section-title">🔊 Media & Timer</div>
+                        <div class="d-grid gap-2">
+                            <button onclick="playMedia('intro')" class="btn btn-primary btn-custom">🎵 Nhạc Intro</button>
+                            <label class="small text-muted fw-bold mt-2">Đồng hồ đếm ngược:</label>
+                            <div class="btn-group">
+                                <button onclick="startGeneralTimer()" class="btn btn-outline-primary fw-bold">15s Chung</button>
+                                <button onclick="startTargetTimer(15)" class="btn btn-outline-success fw-bold">15s Riêng</button>
+                                <button onclick="startTargetTimer(30)" class="btn btn-outline-danger fw-bold">30s Riêng</button>
+                            </div>
+                            <label class="small text-muted fw-bold mt-2">Hiệu ứng âm thanh:</label>
+                            <div class="btn-group">
+                                <button onclick="playSfx('right')" class="btn btn-success fw-bold">✅ ĐÚNG</button>
+                                <button onclick="playSfx('wrong')" class="btn btn-danger fw-bold">❌ SAI</button>
+                            </div>
+                            <button onclick="stopAll()" class="btn btn-dark btn-custom mt-3">⛔ DỪNG TẤT CẢ</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="host-card">
+                        <div class="host-section-title">📝 Nội Dung & Điểm Cược</div>
+                        <div class="mb-3">
+                            <textarea id="questionInput" class="form-control mb-2" rows="2" placeholder="Nhập câu hỏi..."></textarea>
+                            <input type="text" id="correctAnswerInput" class="form-control mb-2 text-danger fw-bold" placeholder="Nhập đáp án đúng...">
+                            <button onclick="storeQuestion()" class="btn btn-secondary w-100 btn-custom">💾 Lưu & Gửi MC</button>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label class="small text-muted fw-bold">Điểm cược của thí sinh:</label>
+                            <div class="input-group">
+                                <input type="number" id="wagerInput" class="form-control" placeholder="Ví dụ: 20">
+                                <button onclick="sendWager()" class="btn btn-info fw-bold text-white">Gửi Điểm</button>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="mb-2">
+                            <select id="playerSelect" class="form-select bg-light fw-bold text-primary"></select>
+                        </div>
+                        <button onclick="selectPlayer()" class="btn btn-warning w-100 btn-custom">🎯 Chọn Thí Sinh Này</button>
+                        <div class="mt-2 text-center text-success fw-bold" id="targetName">Target: Chưa chọn</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="host-card">
+                        <div class="host-section-title">👥 Danh Sách Thí Sinh</div>
+                        <ul class="list-group list-group-flush" id="playerList" style="max-height: 400px; overflow-y: auto;"></ul>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="hostScreen" class="container mt-4" style="display: none;">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>🎛️ HOST CONTROL</h2>
-            <button class="btn btn-sm btn-outline-danger" onclick="location.reload()">Thoát</button>
+    <div id="mcContainer" style="display: none;">
+        <div class="mc-header-row">
+            <div class="mc-target-info">THÍ SINH: <span id="mcTargetDisplay">...</span><span id="mcWagerDisplay" class="mc-wager-text"></span></div>
+            <div class="mc-timer-text" id="mcTimerDisplay">00</div>
         </div>
-
-        <div class="card border-primary">
-            <div class="card-header bg-primary text-white">ĐIỀU KHIỂN: Ô MẠO HIỂM</div>
-            <div class="card-body">
-                <div class="input-group mb-3">
-                    <input type="text" id="vncvQ" class="form-control" placeholder="Nhập câu hỏi...">
-                    <button class="btn btn-info" onclick="socket.emit('updateVncvQuestion', {roomId: myRoomId, text: document.getElementById('vncvQ').value})">Hiện câu hỏi</button>
-                </div>
-                <div class="mb-3">
-                    <label class="fw-bold">Bấm giờ & Mở khóa:</label><br>
-                    <button class="btn btn-success me-2" onclick="controlMedia('startTimer', 15)">⏱️ 15 Giây</button>
-                    <button class="btn btn-warning me-2" onclick="controlMedia('startTimer', 30)">⏱️ 30 Giây</button>
-                    <button class="btn btn-danger" onclick="controlMedia('stop')">⏹️ Dừng / Khóa</button>
-                </div>
-                <hr>
-                <h6>Danh sách đáp án thí sinh:</h6>
-                <ul class="list-group" id="vncvAnswerList"></ul>
-            </div>
+        <div id="mcQuestion" class="mc-question-area">ĐANG CHỜ CÂU HỎI...</div>
+        <div class="mc-footer-row">
+            <div class="mc-col mc-col-left"><div class="mc-lbl-player">ĐÁP ÁN THÍ SINH</div><div id="mcPlayerAnswer" class="mc-val-player">...</div></div>
+            <div class="mc-col mc-col-right"><div class="mc-lbl-correct">ĐÁP ÁN CHƯƠNG TRÌNH</div><div id="mcAnswer" class="mc-val-correct">...</div></div>
         </div>
     </div>
 
-    <div id="playerScreen" class="container mt-4" style="display: none;">
-        <h4 id="pNameDisplay" class="text-center mb-4 text-secondary">Thí sinh: ...</h4>
-
-        <div class="card shadow-lg border-primary">
-            <div class="card-header bg-primary text-white text-center fw-bold">TRẢ LỜI CÂU HỎI</div>
-            <div class="card-body">
-                <div id="pQuestion" class="alert alert-light border text-center fw-bold text-dark mb-3" style="min-height: 60px; font-size: 1.2rem;">
-                    Chờ câu hỏi từ Host...
-                </div>
-                
-                <div id="inputStatus" class="text-end mb-2 fw-bold text-danger small">ĐANG KHÓA</div>
-                
-                <input type="text" id="answerInput" class="form-control form-control-lg text-center mb-3" placeholder="Nhập đáp án..." disabled style="font-size: 1.5rem;">
-                
-                <button class="btn btn-primary btn-lg w-100 py-3 fw-bold" onclick="submitVncvAnswer()">GỬI ĐÁP ÁN</button>
-                
-                <div class="mt-3 text-center">
-                    <span class="text-muted">Đã gửi: </span>
-                    <span id="pSubmitted" class="fw-bold text-success fs-5">...</span>
-                </div>
+    <div id="playerContainer" style="display: none;">
+        <div id="playerLoginScreen">
+            <div class="card shadow p-4">
+                <h3 class="text-center text-danger mb-3">ĐĂNG NHẬP</h3>
+                <input type="text" id="pName" class="form-control mb-2" placeholder="Tên thí sinh...">
+                <input type="text" id="pRoom" class="form-control mb-3" placeholder="Mã phòng...">
+                <button onclick="joinGame()" class="btn btn-success w-100">Vào thi</button>
             </div>
         </div>
+        <div id="playerGameScreen" style="display: none;">
+            <div id="playerTimerDisplay">00</div>
+            <div class="p-title">PHẦN TRẢ LỜI Ô MẠO HIỂM</div>
+            <div class="p-label">Câu hỏi</div>
+            <div class="p-question-box" id="pQuestion"></div>
+            <div class="p-label">Nhập đáp án (Enter)</div>
+            <input type="text" class="p-input" id="answerInput" onkeypress="handleEnter(event)" disabled>
+            <div id="inputStatus" class="small text-end mb-2 fw-bold text-muted">Trạng thái: ...</div>
+            <div id="fsWarning" class="fs-warning-text text-center mb-2">⚠️ CẢNH BÁO: BẠN ĐÃ THOÁT TOÀN MÀN HÌNH!<br>Vui lòng bấm nút dưới để tiếp tục.</div>
+            <div class="text-center"><button onclick="requestFullScreen()" id="btnReFs" class="btn btn-danger" style="display:none;">BẬT LẠI FULLSCREEN</button></div>
+            <div class="p-label">Đáp án đã gửi</div>
+            <div class="p-result-box" id="pSubmitted"></div>
+        </div>
+    </div>
+
+    <div id="viewerContainer" style="display: none;">
+        <div id="viewerFsWarning" style="display: flex;">
+            <h1 class="display-1 fw-bold">⚠️ CẢNH BÁO</h1>
+            <h3 class="mt-3">MÀN HÌNH ĐÃ THOÁT CHẾ ĐỘ FULLSCREEN</h3>
+            <button onclick="requestFullScreen()" class="btn btn-outline-light btn-lg mt-3">Bật lại</button>
+        </div>
+        <img id="viewerBg" src="/assets/bg.gif" onerror="this.style.display='none'" alt="Background">
+        <div class="viewer-content"><div id="timerDisplay">15</div></div>
         
-        <div class="text-center mt-3">
-            <button class="btn btn-outline-secondary btn-sm" onclick="requestFullscreen()">⚠️ BẬT CHẾ ĐỘ TOÀN MÀN HÌNH (ĐỂ TRẢ LỜI)</button>
-        </div>
+        <audio id="s_intro" src="/assets/intro.mp3" preload="auto"></audio>
+        <audio id="s_betting" src="/assets/betting.mp3" preload="auto"></audio>
+        <audio id="s_timer15" src="/assets/timer15.mp3" preload="auto"></audio>
+        <audio id="s_timer30" src="/assets/timer30.mp3" preload="auto"></audio>
+        <audio id="s_right" src="/assets/right.mp3" preload="auto"></audio>
+        <audio id="s_wrong" src="/assets/wrong.mp3" preload="auto"></audio>
     </div>
 
-    <div id="mcScreen" class="container mt-4" style="display: none;">
-        <h2>🎤 MC VIEW</h2>
-        <div class="card mt-5 shadow border-0">
-            <div class="card-body text-center p-5">
-                <h1 class="display-1 fw-bold text-primary" id="mcBigText">...</h1>
-                <h3 class="text-secondary mt-3" id="mcSubText"></h3>
-            </div>
-        </div>
-    </div>
-
-    <div id="viewerContainer">
-        <div id="vncvViewer">
-            <img id="vncvBg" src="/waiting_bg.jpg"> 
-            <div id="vncvContent">
-                <div class="vncv-question" id="vncvViewerQ">CHỜ CÂU HỎI...</div>
-                <h1 id="vncvTimer"></h1>
-            </div>
-        </div>
-        
-        <audio id="sfxTimer15" src="/timer15.mp3"></audio>
-        <audio id="sfxTimer30" src="/timer30.mp3"></audio>
-    </div>
-
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let myRole = '', myRoomId = '', myId = '';
+        let myId = ''; let myRoom = ''; let mode = ''; let timerInt = null; let lastRoomState = null; 
+        socket.on('connect', () => myId = socket.id);
+        
+        window.onload = function() {
+            document.getElementById('modeSelector').style.display = 'block';
+            ['hostContainer','mcContainer','playerContainer','viewerContainer'].forEach(id => document.getElementById(id).style.display = 'none');
+        }
 
-        // === 1. HÀM JOIN GAME (ĐÃ FIX) ===
-        function joinGame(role) {
-            const r = document.getElementById('roomId').value;
-            const n = document.getElementById('playerName').value;
-            
-            if(!r) return alert("Vui lòng nhập tên phòng!");
-            if(role === 'PLAYER' && !n) return alert("Vui lòng nhập tên thí sinh!");
+        document.addEventListener('fullscreenchange', () => { checkFullscreenState(); });
+        function checkFullscreenState() {
+            const isFS = !!document.fullscreenElement;
+            if (mode === 'player') {
+                const warningTxt = document.getElementById('fsWarning');
+                const btnRe = document.getElementById('btnReFs');
+                if (!isFS) { warningTxt.style.display = 'block'; btnRe.style.display = 'inline-block'; } 
+                else { warningTxt.style.display = 'none'; btnRe.style.display = 'none'; }
+                if (lastRoomState) updatePlayer(lastRoomState);
+            } else if (mode === 'viewer') {
+                document.getElementById('viewerFsWarning').style.display = isFS ? 'none' : 'flex';
+            }
+        }
+        function requestFullScreen() { const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>console.log(e)); }
 
-            myRole = role; 
-            myRoomId = r;
-            
-            // Gửi yêu cầu lên server
-            socket.emit('joinRoom', { roomId: r, playerName: n||role, isHost: role==='HOST', isViewer: role==='VIEWER', isMC: role==='MC' });
-            
-            // Ẩn màn hình đăng nhập
-            document.getElementById('loginScreen').style.display = 'none';
+        // --- HÀM MỚI: MỒI ÂM THANH (FIX DELAY) ---
+        function warmUpAudio() {
+            const audioIds = ['s_intro', 's_betting', 's_timer15', 's_timer30', 's_right', 's_wrong'];
+            audioIds.forEach(id => {
+                const el = document.getElementById(id);
+                if(el) {
+                    el.muted = true; // Tắt tiếng
+                    // Phát thử rồi dừng ngay để trình duyệt nạp vào RAM
+                    el.play().then(() => {
+                        el.pause();
+                        el.currentTime = 0;
+                        el.muted = false; // Bật tiếng lại để sẵn sàng
+                    }).catch(err => {
+                        console.log("Audio chưa sẵn sàng (cần tương tác người dùng):", err);
+                    });
+                }
+            });
+        }
+        // ------------------------------------------
 
-            // Hiện màn hình tương ứng
-            if(role === 'HOST') document.getElementById('hostScreen').style.display = 'block';
-            if(role === 'MC') document.getElementById('mcScreen').style.display = 'block';
-            if(role === 'VIEWER') document.getElementById('viewerContainer').style.display = 'block';
+        function setMode(m) {
+            mode = m;
+            document.getElementById('modeSelector').style.display = 'none';
             
-            // QUAN TRỌNG: Hiện màn hình Thí sinh
-            if(role === 'PLAYER') {
-                document.getElementById('playerScreen').style.display = 'block';
-                document.getElementById('pNameDisplay').innerText = "Thí sinh: " + n;
-                
-                // Bật vòng lặp kiểm tra Fullscreen (Logic khóa/mở)
-                setInterval(checkPlayerLogic, 500); 
+            // GỌI HÀM MỒI ÂM THANH NGAY KHI CHỌN CHẾ ĐỘ
+            warmUpAudio(); 
+
+            if(m === 'host') {
+                myRoom = prompt("Tạo Mã Phòng:") || "OLP";
+                document.getElementById('roomIdDisplay').innerText = myRoom;
+                socket.emit('joinRoom', { roomId: myRoom, playerName: 'Host', isHost: true });
+                document.getElementById('hostContainer').style.display = 'block';
+            } else if (m === 'mc') {
+                myRoom = prompt("Nhập Mã Phòng:") || "OLP";
+                document.getElementById('mcContainer').style.display = 'flex';
+                socket.emit('joinRoom', { roomId: myRoom, isMC: true });
+            } else if (m === 'player') {
+                document.getElementById('playerContainer').style.display = 'block';
+            } else if (m === 'viewer') {
+                myRoom = prompt("Nhập Mã Phòng:") || "OLP";
+                document.getElementById('viewerContainer').style.display = 'block';
+                document.body.addEventListener('click', () => {
+                    // Click thêm lần nữa vào màn hình Viewer để chắc chắn âm thanh được bật
+                    warmUpAudio(); 
+                }, {once:true});
+                alert("Click vào màn hình để bật âm thanh & Fullscreen!");
+                socket.emit('joinRoom', { roomId: myRoom, isViewer: true });
             }
         }
 
-        socket.on('connect', () => myId = socket.id);
+        function playMedia(type) { socket.emit('controlMedia', { roomId: myRoom, action: 'playAudio', file: type }); }
+        function playSfx(type) { socket.emit('controlMedia', { roomId: myRoom, action: 'playSfx', type: type }); }
+        function startGeneralTimer() { socket.emit('controlMedia', { roomId: myRoom, action: 'startGeneralTimer' }); }
+        function storeQuestion() { 
+            const q = document.getElementById('questionInput').value;
+            const ans = document.getElementById('correctAnswerInput').value;
+            socket.emit('adminVNCV', { roomId: myRoom, action: 'storeQuestion', question: q, correctAnswer: ans }); 
+        }
+        function sendWager() { const pts = document.getElementById('wagerInput').value; if(pts) socket.emit('adminVNCV', { roomId: myRoom, action: 'setWager', points: pts }); }
+        function selectPlayer() { socket.emit('adminVNCV', { roomId: myRoom, action: 'selectPlayer', playerId: document.getElementById('playerSelect').value }); }
+        function startTargetTimer(sec) { socket.emit('controlMedia', { roomId: myRoom, action: 'startTargetTimer', duration: sec }); }
+        function stopAll() { socket.emit('controlMedia', { roomId: myRoom, action: 'stop' }); }
+        function resetRoom() { if(confirm('Reset?')) socket.emit('hostControl', { roomId: myRoom, action: 'clearBuzzers' }); }
+        function sendPrivateMsg(pid) { const msg = prompt("Nhập nội dung nhắn riêng:"); if(msg && msg.trim() !== "") socket.emit('hostPrivateChat', { roomId: myRoom, targetId: pid, message: msg }); }
 
-        // Nhận thông báo lỗi từ server (nếu phòng chưa tạo)
-        socket.on('errorMessage', (msg) => {
-            alert(msg);
-            location.reload(); // Tải lại trang để đăng nhập lại
+        function joinGame() {
+            const name = document.getElementById('pName').value;
+            myRoom = document.getElementById('pRoom').value;
+            if(!name || !myRoom) return alert("Vui lòng điền đủ thông tin!");
+            socket.emit('joinRoom', { roomId: myRoom, playerName: name });
+        }
+        
+        function handleEnter(e) {
+            if(e.key === 'Enter' && !e.target.disabled) {
+                const val = e.target.value.trim().toUpperCase(); 
+                if(val) { socket.emit('submitAnswer', { roomId: myRoom, answer: val }); e.target.value = ''; }
+            }
+        }
+
+        socket.on('errorMessage', (msg) => alert(msg));
+        socket.on('joinSuccess', (data) => {
+            if (data.role === 'player') {
+                document.getElementById('playerLoginScreen').style.display = 'none';
+                document.getElementById('playerGameScreen').style.display = 'block';
+                requestFullScreen(); 
+            } else if (data.role === 'viewer') { requestFullScreen(); }
         });
-
-        // === 2. UPDATE TRẠNG THÁI TỪ SERVER ===
         socket.on('updateState', (room) => {
-            // Logic HOST
-            if(myRole === 'HOST') {
-                const list = document.getElementById('vncvAnswerList');
-                list.innerHTML = "";
-                for(const pid in room.players) {
-                    const p = room.players[pid];
-                    if(!p.isHost && !p.isViewer && !p.isMC) {
-                        list.innerHTML += `<li class="list-group-item d-flex justify-content-between">
-                            <span>${p.name}</span>
-                            <span class="fw-bold text-primary">${p.lastAnswer || "..."}</span>
-                        </li>`;
-                    }
+            if(mode === 'host') updateHost(room);
+            if(mode === 'player') updatePlayer(room);
+            if(mode === 'mc') updateMC(room);
+        });
+        socket.on('privateMessage', (data) => {
+            if(mode === 'player') {
+                document.getElementById('pMsgContent').innerText = data.message;
+                document.getElementById('privateMsgPopup').style.display = 'block';
+            }
+        });
+        
+        socket.on('mediaControl', (data) => {
+            const vTimer = document.getElementById('timerDisplay');
+            const mcTimer = document.getElementById('mcTimerDisplay');
+            const pTimer = document.getElementById('playerTimerDisplay');
+            const audios = ['intro', 'betting', 'timer15', 'timer30', 'right', 'wrong'];
+
+            if (data.action === 'playSfx') {
+                if (mode === 'viewer') { 
+                    if (data.type === 'right') document.getElementById('s_right').play();
+                    if (data.type === 'wrong') document.getElementById('s_wrong').play();
+                }
+                return;
+            }
+            if (data.action === 'stop') {
+                if(timerInt) clearInterval(timerInt);
+                if(vTimer) vTimer.style.display = 'none';
+                if(mcTimer) mcTimer.innerText = '00';
+                if(pTimer) pTimer.style.display = 'none';
+                if (mode === 'viewer') audios.forEach(id => { const el = document.getElementById('s_' + id); if(el) { el.pause(); el.currentTime = 0; } });
+            }
+            else if (data.action === 'timeUp') {
+                if(timerInt) clearInterval(timerInt);
+                if(vTimer) vTimer.style.display = 'none';
+                if(mcTimer) mcTimer.innerText = '00';
+                if(pTimer) pTimer.style.display = 'none';
+            }
+            else if (data.action === 'playAudio') {
+                if (mode === 'viewer') {
+                    audios.forEach(id => { const el = document.getElementById('s_' + id); if(el) { el.pause(); el.currentTime = 0; } });
+                    if(data.file === 'intro') document.getElementById('s_intro').play();
                 }
             }
-
-            // Logic PLAYER
-            if(myRole === 'PLAYER') {
-                const p = room.players[myId];
-                // Cập nhật câu hỏi
-                const qBox = document.getElementById('pQuestion');
-                if(room.vncv.question) {
-                     // Nếu có chỉ định người chơi thì chỉ hiện cho người đó (Logic nâng cao), 
-                     // ở đây hiện chung cho tất cả nếu không có chỉ định
-                    qBox.innerText = room.vncv.question;
-                } else {
-                    qBox.innerText = "Chờ câu hỏi...";
+            else if (data.action === 'startTimer') {
+                if (mode === 'viewer') {
+                    audios.forEach(id => { const el = document.getElementById('s_' + id); if(el) { el.pause(); el.currentTime = 0; } });
+                    if(data.audio === 'betting') document.getElementById('s_betting').play();
+                    else if(data.audio === 'timer15') document.getElementById('s_timer15').play();
+                    else if(data.audio === 'timer30') document.getElementById('s_timer30').play();
                 }
-                // Cập nhật câu trả lời đã gửi
-                document.getElementById('pSubmitted').innerText = (p && p.lastAnswer) ? p.lastAnswer : "...";
                 
-                // Lưu lại room hiện tại để dùng cho hàm checkPlayerLogic
-                window.currentRoomState = room;
-            }
+                if(vTimer && mode === 'viewer') vTimer.style.display = 'none'; 
 
-            // Logic VIEWER
-            if(myRole === 'VIEWER') {
-                document.getElementById('vncvViewerQ').innerText = room.vncv.question || "CHỜ CÂU HỎI...";
-            }
-
-            // Logic MC
-            if(myRole === 'MC') {
-                document.getElementById('mcBigText').innerText = "Ô MẠO HIỂM";
-                document.getElementById('mcSubText').innerText = room.vncv.question || "Chưa có câu hỏi";
+                if(pTimer && mode === 'player') pTimer.style.display = 'block';
+                let t = data.duration;
+                const updateAll = (val) => {
+                    const displayVal = val < 10 ? '0' + val : val;
+                    if(vTimer) vTimer.innerText = val; 
+                    if(mcTimer) mcTimer.innerText = displayVal;
+                    if(pTimer) pTimer.innerText = displayVal;
+                };
+                updateAll(t);
+                if(timerInt) clearInterval(timerInt);
+                timerInt = setInterval(() => { t--; updateAll(t); if(t <= 0) clearInterval(timerInt); }, 1000);
             }
         });
 
-        // === 3. LOGIC PLAYER (FULLSCREEN & KHÓA INPUT) ===
-        function checkPlayerLogic() {
-            // Lấy state phòng mới nhất
-            const room = window.currentRoomState;
-            if(!room) return;
+        function updateHost(room) {
+            const list = document.getElementById('playerList');
+            const sel = document.getElementById('playerSelect');
+            const curSel = sel.value;
+            list.innerHTML = ''; sel.innerHTML = '<option value="">-- Chọn Thí Sinh --</option>';
+            for(const pid in room.players) {
+                const p = room.players[pid];
+                if(!p.isHost && !p.isMC) {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    if(pid === room.vncv.targetPlayerId) { li.classList.add('list-group-item-warning'); }
+                    li.innerHTML = `
+                        <div class="d-flex align-items-center gap-2">
+                            <b>${p.name}</b> 
+                            <button class="btn btn-sm btn-outline-dark" onclick="sendPrivateMsg('${pid}')">✉️</button>
+                        </div>
+                        <span class="badge bg-primary fs-6">${p.lastAnswer || ''}</span>
+                    `;
+                    list.appendChild(li);
+                    const opt = document.createElement('option');
+                    opt.value = pid; opt.innerText = p.name;
+                    sel.appendChild(opt);
+                }
+            }
+            if(curSel) sel.value = curSel;
+            const tName = room.players[room.vncv.targetPlayerId]?.name || "Chưa chọn";
+            document.getElementById('targetName').innerText = "Target: " + tName;
+        }
 
+        function updateMC(room) {
+            const tName = room.players[room.vncv.targetPlayerId]?.name || "Chưa chọn";
+            document.getElementById('mcTargetDisplay').innerText = tName;
+            const wager = room.vncv.wagerPoints ? `(${room.vncv.wagerPoints} ĐIỂM)` : "";
+            document.getElementById('mcWagerDisplay').innerText = wager;
+            document.getElementById('mcQuestion').innerText = room.vncv.question || "ĐANG CHỜ CÂU HỎI...";
+            document.getElementById('mcAnswer').innerText = room.vncv.correctAnswer || "...";
+            const targetId = room.vncv.targetPlayerId;
+            const targetPlayer = room.players[targetId];
+            const pAns = (targetPlayer && targetPlayer.lastAnswer) ? targetPlayer.lastAnswer : "...";
+            document.getElementById('mcPlayerAnswer').innerText = pAns;
+        }
+
+        function updatePlayer(room) {
+            lastRoomState = room;
+            const p = room.players[myId];
+            const vncv = room.vncv || {};
+            const qBox = document.getElementById('pQuestion');
             const input = document.getElementById('answerInput');
             const st = document.getElementById('inputStatus');
-            
+            if(vncv.question) {
+                if(vncv.targetPlayerId && vncv.targetPlayerId !== myId) qBox.innerText = ""; 
+                else qBox.innerText = vncv.question;
+            } else { qBox.innerText = ""; }
             let canType = false;
-            let statusText = "ĐANG KHÓA";
-            let statusClass = "text-danger";
-
-            // 1. Kiểm tra Server có mở cổng không
-            const serverOpen = (room.answerMode === 'unlocked' && room.vncv.isInputOpen);
-
-            // 2. Kiểm tra Fullscreen
-            const isFullscreen = document.fullscreenElement != null;
-
-            if (serverOpen) {
-                if (isFullscreen) {
-                    canType = true;
-                    statusText = "MỜI TRẢ LỜI";
-                    statusClass = "text-success";
-                } else {
-                    canType = false;
-                    statusText = "LỖI: BẬT FULLSCREEN ĐỂ NHẬP!";
-                    statusClass = "text-danger";
+            let statusText = "Khóa";
+            let statusClass = "text-muted";
+            if (vncv.targetPlayerId) {
+                if (vncv.targetPlayerId === myId && vncv.isInputOpen) {
+                    canType = true; statusText = "Được phép trả lời"; statusClass = "text-success";
                 }
-            } else {
-                canType = false;
-                statusText = "ĐANG KHÓA (Hết giờ/Chưa bắt đầu)";
-                statusClass = "text-muted";
+            } else if (room.answerMode === 'unlocked') {
+                canType = true; statusText = "Được phép trả lời chung"; statusClass = "text-primary";
             }
-
+            if (!document.fullscreenElement) {
+                canType = false; statusText = "BỊ KHÓA: VUI LÒNG BẬT FULLSCREEN!"; statusClass = "text-danger";
+            }
             input.disabled = !canType;
-            if(canType && document.activeElement !== input) input.focus();
-            
+            if(canType) input.focus();
             st.innerText = statusText;
             st.className = `small text-end mb-2 fw-bold ${statusClass}`;
+            if(p && p.lastAnswer) document.getElementById('pSubmitted').innerText = p.lastAnswer;
+            else document.getElementById('pSubmitted').innerText = "";
         }
-
-        // === 4. MEDIA CONTROL ===
-        socket.on('mediaControl', (data) => {
-            if(myRole === 'VIEWER') {
-                if(data.action === 'startTimer') {
-                    document.getElementById('vncvTimer').innerText = data.duration;
-                    let c = data.duration;
-                    const i = setInterval(() => { 
-                        c--; 
-                        document.getElementById('vncvTimer').innerText = c; 
-                        if(c<=0) { clearInterval(i); document.getElementById('vncvTimer').innerText = "HẾT GIỜ"; }
-                    }, 1000);
-                    
-                    const aud = (data.duration===15) ? document.getElementById('sfxTimer15') : document.getElementById('sfxTimer30');
-                    if(aud){ aud.currentTime=0; aud.play().catch(e=>console.log(e)); }
-
-                } else if (data.action === 'stop') {
-                    document.getElementById('vncvTimer').innerText = "";
-                    document.getElementById('sfxTimer15').pause(); 
-                    document.getElementById('sfxTimer30').pause();
-                }
-            }
-        });
-
-        // === 5. CÁC HÀM GỬI LỆNH ===
-        function submitVncvAnswer() { 
-            socket.emit('submitAnswer', { roomId: myRoomId, answer: document.getElementById('answerInput').value }); 
-        }
-        function requestFullscreen() { document.documentElement.requestFullscreen(); }
-        function controlMedia(a, d) { socket.emit('controlMedia', {roomId: myRoomId, action: a, duration: d}); }
-
     </script>
 </body>
 </html>
