@@ -12,13 +12,13 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, 'public')));
 
 const rooms = {};
-let activeTimer = null;
+let activeTimer = null; 
 
 function getPublicRooms() {
     const list = [];
     for (const [id, room] of Object.entries(rooms)) {
         if (room.hostId) { 
-            const playerCount = Object.values(room.players).filter(p => !p.isHost && !p.isMC && !p.isViewer).length;
+            const playerCount = Object.values(room.players).filter(p => !p.isHost && !p.isMC).length;
             list.push({ id: id, playerCount: playerCount });
         }
     }
@@ -29,10 +29,10 @@ io.on('connection', (socket) => {
     socket.emit('roomListUpdate', getPublicRooms());
     socket.on('requestRoomList', () => socket.emit('roomListUpdate', getPublicRooms()));
 
-    // 1. VÀO PHÒNG
+    // JOIN ROOM
     socket.on('joinRoom', ({ roomId, playerName, isHost, isViewer, isMC }) => {
-        if (!isHost && !rooms[roomId]) {
-            socket.emit('errorMessage', `❌ Phòng '${roomId}' chưa tạo!`);
+        if ((!isHost) && !rooms[roomId]) {
+            socket.emit('errorMessage', `❌ Lỗi: Phòng '${roomId}' không tồn tại!`);
             return;
         }
 
@@ -40,94 +40,181 @@ io.on('connection', (socket) => {
 
         if (!rooms[roomId]) {
             rooms[roomId] = {
+                players: {},
                 hostId: null,
-                roundType: 'VNCV', // Mặc định vào VNCV trước
-                
-                // STATE VNCV
-                vncv: {
-                    question: "",
-                    isInputOpen: false, 
-                    targetPlayerId: null, 
-                },
                 answerMode: 'hostLocked', 
-
-                // STATE TANG TOC
-                tangtoc: {
-                    status: 'IDLE',
-                    questionText: "",
-                    questionData: "",
-                    buzzedPlayer: null 
-                },
-                players: {}
+                vncv: { question: null, correctAnswer: null, wagerPoints: 0, isInputOpen: false, targetPlayerId: null } 
             };
         }
-
         const room = rooms[roomId];
+
+        if (isViewer || isMC) {
+            socket.emit('updateState', room);
+            const role = isViewer ? 'viewer' : 'mc';
+            socket.emit('joinSuccess', { role: role, roomId });
+            return;
+        }
+
+        if (!isHost) {
+            const names = Object.values(room.players).filter(p => !p.isHost && !p.isMC).map(p => p.name.toLowerCase());
+            if (names.includes(playerName.toLowerCase())) {
+                 socket.emit('errorMessage', '❌ Tên đã tồn tại!');
+                 socket.leave(roomId); 
+                 return;
+            }
+        }
+        
         room.players[socket.id] = {
-            id: socket.id, name: playerName, isHost, isViewer, isMC, lastAnswer: "" 
+            id: socket.id,
+            name: playerName,
+            isHost: isHost,
+            isMC: isMC || false,
+            lastAnswer: null,
+            hasSubmitted: false
         };
 
-        if (isHost) room.hostId = socket.id;
+        if (isHost) {
+            room.hostId = socket.id;
+            io.emit('roomListUpdate', getPublicRooms()); 
+        }
+
         io.to(roomId).emit('updateState', room);
-        io.emit('roomListUpdate', getPublicRooms());
+        socket.emit('joinSuccess', { role: isHost ? 'host' : 'player', roomId });
     });
 
-    // 2. CHUYỂN VÒNG (RESET TRẠNG THÁI)
-    socket.on('switchRound', ({ roomId, type }) => {
-        if (rooms[roomId]) {
-            rooms[roomId].roundType = type;
-            
-            // Reset dữ liệu của vòng kia để tránh lỗi
-            if (type === 'TANGTOC') {
-                rooms[roomId].tangtoc.status = 'IDLE';
-                rooms[roomId].tangtoc.buzzedPlayer = null;
-            } else {
-                rooms[roomId].vncv.isInputOpen = false;
-                rooms[roomId].answerMode = 'hostLocked';
-                if(activeTimer) clearTimeout(activeTimer);
+    // SUBMIT ANSWER (LUÔN VIẾT HOA)
+    socket.on('submitAnswer', ({ roomId, answer }) => {
+        const room = rooms[roomId];
+        if (!room || !room.players[socket.id]) return;
+        
+        const playerId = socket.id;
+        const vncv = room.vncv || {};
+        let isInputAllowed = false;
+
+        if (vncv.targetPlayerId) {
+            if (vncv.targetPlayerId === playerId && vncv.isInputOpen) isInputAllowed = true;
+        } else {
+            if (room.answerMode === 'unlocked') isInputAllowed = true;
+        }
+
+        if (isInputAllowed) {
+            const upperAnswer = answer ? answer.toString().toUpperCase() : "";
+            room.players[playerId].lastAnswer = upperAnswer;
+            room.players[playerId].hasSubmitted = true; 
+            io.to(roomId).emit('updateState', room);
+        }
+    });
+
+    // HOST CONTROL
+    socket.on('hostControl', (data) => {
+        const room = rooms[data.roomId];
+        if (!room) return;
+        
+        if (data.action === 'clearBuzzers') {
+            Object.keys(room.players).forEach(pid => {
+                room.players[pid].lastAnswer = null;
+                room.players[pid].hasSubmitted = false;
+            });
+            if(room.vncv) {
+                room.vncv.targetPlayerId = null; 
+                room.vncv.isInputOpen = false;
+                room.vncv.wagerPoints = 0; 
             }
-            io.to(roomId).emit('updateState', rooms[roomId]);
+            room.answerMode = 'hostLocked';
+            if(activeTimer) clearTimeout(activeTimer);
+            io.to(data.roomId).emit('mediaControl', { action: 'stop' });
+
+        } else if (data.action === 'setAnswerMode') {
+            room.answerMode = data.value;
+            if(room.vncv) {
+                if (data.value === 'unlocked') room.vncv.isInputOpen = true; 
+                else if (data.value === 'hostLocked') room.vncv.isInputOpen = false;
+            }
         }
+        io.to(data.roomId).emit('updateState', room);
     });
 
-    // 3. LOGIC VNCV (FIX: MỞ KHÓA KHI CHẠY TIMER)
-    socket.on('updateVncvQuestion', ({ roomId, text }) => {
-        if (rooms[roomId]) {
-            rooms[roomId].vncv.question = text;
-            io.to(roomId).emit('updateState', rooms[roomId]);
+    // ADMIN
+    socket.on('adminVNCV', (data) => {
+        const room = rooms[data.roomId];
+        if (!room) return;
+        
+        if (data.action === 'storeQuestion') { 
+            if(!room.vncv) room.vncv = {};
+            room.vncv.question = data.question; 
+            room.vncv.correctAnswer = data.correctAnswer;
+        } else if (data.action === 'selectPlayer') { 
+            const targetId = data.playerId;
+            if (room.players[targetId]) {
+                room.vncv.targetPlayerId = targetId; 
+                room.vncv.isInputOpen = false; 
+                room.players[targetId].lastAnswer = null; 
+                room.players[targetId].hasSubmitted = false;
+                room.answerMode = 'hostLocked'; 
+            }
+        } else if (data.action === 'setWager') {
+            if(!room.vncv) room.vncv = {};
+            room.vncv.wagerPoints = data.points;
         }
+        io.to(data.roomId).emit('updateState', room);
     });
 
+    socket.on('hostPrivateChat', ({ roomId, targetId, message }) => {
+        io.to(targetId).emit('privateMessage', { message: message });
+    });
+
+    // MEDIA
     socket.on('controlMedia', (data) => {
         const room = rooms[data.roomId];
         if (!room) return;
-
+        
         if (data.action === 'playSfx') {
             io.to(data.roomId).emit('mediaControl', { action: 'playSfx', type: data.type });
             return;
         }
 
-            if (activeTimer) clearTimeout(activeTimer);
-            const duration = data.duration; 
+        if (activeTimer) clearTimeout(activeTimer);
 
-            // -> MỞ CỔNG NGAY
-            room.vncv.isInputOpen = true; 
-            room.answerMode = 'unlocked';
-
-            const audioFile = (duration === 15) ? 'timer15.mp3' : 'timer30.mp3';
-            io.to(data.roomId).emit('mediaControl', { action: 'startTimer', duration: duration, audio: audioFile });
+        if (data.action === 'playAudio') {
+            io.to(data.roomId).emit('mediaControl', { action: 'playAudio', file: data.file });
+        } else if (data.action === 'startGeneralTimer') {
+            room.vncv.targetPlayerId = null;
+            room.answerMode = 'unlocked';    
+            io.to(data.roomId).emit('mediaControl', { action: 'startTimer', duration: 15, audio: 'betting' });
             io.to(data.roomId).emit('updateState', room);
-
-            // -> ĐẾM NGƯỢC ĐỂ KHÓA
             activeTimer = setTimeout(() => {
-                room.vncv.isInputOpen = false;
-                room.answerMode = 'hostLocked';
+                room.answerMode = 'hostLocked'; 
+                io.to(data.roomId).emit('updateState', room);
+                io.to(data.roomId).emit('mediaControl', { action: 'timeUp' });
+            }, 15000);
+
+        // --- SỬA ĐỔI TẠI ĐÂY: START TARGET TIMER ---
+        } else if (data.action === 'startTargetTimer') {
+            const targetId = room.vncv.targetPlayerId;
+            if (!targetId) return;
+            
+            // --- RESET ĐÁP ÁN CŨ ---
+            if (room.players[targetId]) {
+                room.players[targetId].lastAnswer = null; // Xóa đáp án
+                room.players[targetId].hasSubmitted = false; // Reset trạng thái
+            }
+            // -----------------------
+
+            room.vncv.isInputOpen = true; 
+            room.answerMode = 'hostLocked'; 
+            const duration = data.duration;
+            const audioFile = (duration === 15) ? 'timer15' : 'timer30';
+            
+            io.to(data.roomId).emit('mediaControl', { action: 'startTimer', duration: duration, audio: audioFile });
+            io.to(data.roomId).emit('updateState', room); // Cập nhật ngay để xóa chữ trên màn hình
+            
+            activeTimer = setTimeout(() => {
+                room.vncv.isInputOpen = false; 
                 io.to(data.roomId).emit('updateState', room);
                 io.to(data.roomId).emit('mediaControl', { action: 'timeUp' });
             }, duration * 1000);
 
         } else if (data.action === 'stop') {
-            if (activeTimer) clearTimeout(activeTimer);
             room.vncv.isInputOpen = false;
             room.answerMode = 'hostLocked';
             io.to(data.roomId).emit('mediaControl', { action: 'stop' }); 
@@ -135,60 +222,20 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('submitAnswer', ({ roomId, answer }) => {
-        const room = rooms[roomId];
-        if (room && (room.answerMode === 'unlocked' || room.vncv.targetPlayerId === socket.id)) {
-            room.players[socket.id].lastAnswer = answer;
-            io.to(roomId).emit('updateState', room);
-        }
-    });
-
-    // 4. LOGIC TĂNG TỐC
-    socket.on('ttControl', ({ roomId, action, data }) => {
-        const room = rooms[roomId];
-        if (!room) return;
-        if (action === 'start') {
-            room.tangtoc.status = 'SHOW_QUESTION';
-            room.tangtoc.questionText = data.text;
-            room.tangtoc.questionData = data.media;
-            room.tangtoc.buzzedPlayer = null;
-        } else if (action === 'continue') {
-            if (room.tangtoc.status === 'BUZZED') {
-                room.tangtoc.status = 'SHOW_QUESTION';
-                room.tangtoc.buzzedPlayer = null;
-            }
-        } else if (action === 'reset') {
-            room.tangtoc.status = 'IDLE';
-            room.tangtoc.questionText = "";
-            room.tangtoc.questionData = "";
-            room.tangtoc.buzzedPlayer = null;
-        }
-        io.to(roomId).emit('updateState', room);
-    });
-
-    socket.on('ttBuzz', ({ roomId }) => {
-        const room = rooms[roomId];
-        if (room && room.tangtoc.status === 'SHOW_QUESTION' && !room.tangtoc.buzzedPlayer) {
-            const player = room.players[socket.id];
-            if (player) {
-                room.tangtoc.status = 'BUZZED';
-                room.tangtoc.buzzedPlayer = { id: player.id, name: player.name };
-                io.to(roomId).emit('updateState', room);
-                io.to(roomId).emit('playSound', 'buzzer');
-            }
-        }
-    });
-
     socket.on('disconnect', () => {
+        let hasChange = false;
         for (const rId in rooms) {
-            if (rooms[rId].players[socket.id]) {
-                delete rooms[rId].players[socket.id];
-                if (rooms[rId].hostId === socket.id) delete rooms[rId];
-                else io.to(rId).emit('updateState', rooms[rId]);
+            const room = rooms[rId];
+            if (room.players[socket.id]) {
+                delete room.players[socket.id];
+                if (room.hostId === socket.id) { delete rooms[rId]; hasChange = true; }
+                else { io.to(rId).emit('updateState', room); }
+                hasChange = true;
             }
         }
+        if(hasChange) io.emit('roomListUpdate', getPublicRooms());
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server chạy port ${PORT}`));
+server.listen(PORT, () => console.log(`Server chạy tại port ${PORT}`));
