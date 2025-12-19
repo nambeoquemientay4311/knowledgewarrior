@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Olympia Ultimate</title>
+    <title>Olympia Control Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; padding: 20px;}
         
         /* VIEWER SCREEN */
         #viewerContainer { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: black; z-index: 9999; }
@@ -31,17 +31,17 @@
     <div id="modeSelector" class="card shadow">
         <div class="card-header bg-primary text-white text-center"><h3>CHỌN CHẾ ĐỘ</h3></div>
         <div class="card-body d-grid gap-3">
-            <button onclick="showLogin('HOST')" class="btn btn-outline-danger btn-lg">🎛️ HOST</button>
+            <button onclick="showLogin('HOST')" class="btn btn-outline-danger btn-lg">🎛️ HOST (Điều khiển)</button>
             <button onclick="showLogin('MC')" class="btn btn-outline-info btn-lg">🎤 MC</button>
             <button onclick="showLogin('PLAYER')" class="btn btn-outline-success btn-lg">👤 THÍ SINH</button>
-            <button onclick="showLogin('VIEWER')" class="btn btn-outline-dark btn-lg">📺 VIEWER</button>
+            <button onclick="showLogin('VIEWER')" class="btn btn-outline-dark btn-lg">📺 VIEWER (Màn hình lớn)</button>
         </div>
     </div>
 
     <div id="loginForm" class="card shadow" style="display: none;">
         <div class="card-body">
             <h3 id="loginTitle" class="text-center mb-3">...</h3>
-            <input type="text" id="roomId" class="form-control mb-3" placeholder="Tên phòng (VD: CK24)" value="CK24">
+            <input type="text" id="roomId" class="form-control mb-3" placeholder="Tên phòng (VD: OLYMPIA)" value="OLYMPIA">
             <input type="text" id="playerName" class="form-control mb-3" placeholder="Tên của bạn">
             <button class="btn btn-primary w-100 btn-lg" onclick="doJoin()">VÀO PHÒNG</button>
             <button class="btn btn-secondary w-100 mt-2" onclick="location.reload()">Quay lại</button>
@@ -73,10 +73,10 @@
     </div>
 
     <div id="playerGameScreen">
-        <h4 id="pNameDisplay" class="text-center mb-4">THÍ SINH</h4>
+        <h4 id="pNameDisplay" class="text-center mb-4 text-muted">THÍ SINH</h4>
         <div class="card shadow-lg border-primary">
             <div class="card-body">
-                <div id="pQuestion" class="p-question-box">Chờ câu hỏi...</div>
+                <div id="pQuestion" class="p-question-box">Chờ câu hỏi từ Host...</div>
                 <div id="inputStatus" class="p-status text-danger">ĐANG KHÓA</div>
                 <input type="text" id="answerInput" class="form-control p-input mb-3" placeholder="Nhập đáp án..." disabled>
                 <button class="btn btn-primary w-100 btn-lg" onclick="submitAns()">GỬI ĐÁP ÁN</button>
@@ -84,7 +84,7 @@
             </div>
         </div>
         <div class="text-center mt-3">
-            <button class="btn btn-outline-secondary" onclick="document.documentElement.requestFullscreen()">⚠️ BẬT FULLSCREEN</button>
+            <button class="btn btn-outline-secondary" onclick="document.documentElement.requestFullscreen()">⚠️ BẬT CHẾ ĐỘ TOÀN MÀN HÌNH</button>
         </div>
     </div>
 
@@ -138,22 +138,25 @@
 
         socket.on('errorMessage', (msg) => alert(msg));
 
-        // QUAN TRỌNG: SỰ KIỆN NÀY GIÚP CHUYỂN MÀN HÌNH
+        // QUAN TRỌNG: SỰ KIỆN NÀY ĐÃ ĐƯỢC THÊM ĐỂ FIX LỖI
         socket.on('joinSuccess', (data) => {
+            // Ẩn form đăng nhập
             document.getElementById('loginForm').style.display = 'none';
             
+            // Hiện màn hình tương ứng
             if (data.role === 'host') document.getElementById('hostContainer').style.display = 'block';
             else if (data.role === 'player') {
                 document.getElementById('playerGameScreen').style.display = 'block';
                 document.getElementById('pNameDisplay').innerText = "Thí sinh: " + document.getElementById('playerName').value;
-                setInterval(checkPlayerLogic, 500); // Kích hoạt check khóa/mở
+                // Bật vòng lặp kiểm tra khóa/mở input
+                setInterval(checkPlayerLogic, 500); 
             }
             else if (data.role === 'viewer') document.getElementById('viewerContainer').style.display = 'block';
             else if (data.role === 'mc') document.getElementById('mcContainer').style.display = 'block';
         });
 
         socket.on('updateState', (room) => {
-            // HOST
+            // HOST LOGIC
             if (myRole === 'HOST') {
                 const list = document.getElementById('hostAnswerList');
                 list.innerHTML = "";
@@ -166,18 +169,18 @@
                     }
                 }
             }
-            // PLAYER
+            // PLAYER LOGIC
             else if (myRole === 'PLAYER') {
                 const p = room.players[myId];
                 document.getElementById('pQuestion').innerText = room.vncv.question || "Chờ câu hỏi...";
                 document.getElementById('pSubmitted').innerText = (p && p.lastAnswer) ? p.lastAnswer : "...";
-                window.currentRoomState = room; // Lưu state để check logic
+                window.currentRoomState = room; // Lưu lại state để check logic
             }
-            // VIEWER
+            // VIEWER LOGIC
             else if (myRole === 'VIEWER') {
                 document.getElementById('viewerQuestion').innerText = room.vncv.question || "";
             }
-            // MC
+            // MC LOGIC
             else if (myRole === 'MC') {
                 document.getElementById('mcText').innerText = room.vncv.question || "Chờ câu hỏi...";
             }
@@ -210,7 +213,7 @@
             socket.emit('controlMedia', { roomId: myRoomId, action: a, duration: d });
         }
 
-        // Logic khóa/mở input thí sinh
+        // Logic kiểm tra khóa/mở input thí sinh
         function checkPlayerLogic() {
             const room = window.currentRoomState;
             if (!room) return;
@@ -221,9 +224,8 @@
             let statusText = "ĐANG KHÓA";
             let statusClass = "text-danger";
 
-            // Check Server mở cổng
+            // Server mở + Đang Fullscreen -> Mới được nhập
             const serverOpen = (room.answerMode === 'unlocked' && room.vncv.isInputOpen);
-            // Check Fullscreen
             const isFullscreen = document.fullscreenElement != null;
 
             if (serverOpen) {
